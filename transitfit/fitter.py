@@ -62,7 +62,7 @@ class TransitModel(object):
         #and returns the flux zero-point at all times in the lc
         return p[0]*np.ones_like(t)
         
-    def evaluate(self, p):
+    def evaluate(self, par):
         """Evaluates light curve model at light curve times
 
         :param p:
@@ -76,6 +76,9 @@ class TransitModel(object):
             
 
         """
+        p = [par[i] for i in range(5+6*self.lc.n_planets)]
+
+
         #starts by creating a continuum model at times in the light curve
         f = self.continuum(p[0], self.lc.t)
 
@@ -89,7 +92,7 @@ class TransitModel(object):
             close += self.lc.close(i, width=self.width)
 
         #evaluates the light curve data at points where we're in transit
-        f[close] = lc_eval(p, self.lc.t[close], texp=self.lc.texp)
+        f[close] = lc_eval(p[1:], self.lc.t[close], texp=self.lc.texp)
         return f
 
     # THIS WILL BECOME A WRAPPER FOR THE THREE TYPES OF FIT

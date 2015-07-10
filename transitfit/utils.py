@@ -6,7 +6,7 @@ from transit import Central, System, Body #we're using these classes from transi
 def t_folded(t, per, ep):
     return (t + per/2 - ep) % per - (per/2)
 
-def lc_eval(par, t, texp=None): #returns an numpy ndarray light curve
+def lc_eval(p, t, texp=None): #returns an numpy ndarray light curve
                               #using the simple layout of transit package
     """
     Returns flux at given times, given parameters.
@@ -23,9 +23,6 @@ def lc_eval(par, t, texp=None): #returns an numpy ndarray light curve
         Exposure time.  If not provided, assumed to be median t[1:]-t[:-1]
 
     """
-
-    p = list(par)
-    p = p[1:]
 
     if texp is None: #if we aren't given an exposure time, calculate it
         texp = np.median(t[1:] - t[:-1])
