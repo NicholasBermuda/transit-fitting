@@ -6,7 +6,7 @@ from transit import Central, System, Body #we're using these classes from transi
 def t_folded(t, per, ep):
     return (t + per/2 - ep) % per - (per/2)
 
-def lc_eval(p, t, texp=None): #returns an numpy ndarray light curve
+def lc_eval(par, t, texp=None): #returns an numpy ndarray light curve
                               #using the simple layout of transit package
     """
     Returns flux at given times, given parameters.
@@ -23,10 +23,14 @@ def lc_eval(p, t, texp=None): #returns an numpy ndarray light curve
         Exposure time.  If not provided, assumed to be median t[1:]-t[:-1]
 
     """
+
+    p = list(par)
+    p = p[1:]
+
     if texp is None: #if we aren't given an exposure time, calculate it
         texp = np.median(t[1:] - t[:-1])
         
-    n_planets = (len(p) - 4)//6 #number of planets based on input param array
+    n_planets = (len(p) - 4)//6#number of planets based on input param array
     
     rhostar, q1, q2, dilution = p[:4] #assigning star's params from input
 
@@ -34,8 +38,6 @@ def lc_eval(p, t, texp=None): #returns an numpy ndarray light curve
     central.density = rhostar
     s = System(central, dilution=dilution)
 
-    tot = 0 #vestigial?
-    close_to_transit = np.zeros_like(t).astype(bool) #vestigial?
 
     for i in range(n_planets): #iteratively adds the planets passed in from params
         period, epoch, b, rprs, e, w = p[4+i*6:10+i*6]
@@ -44,7 +46,6 @@ def lc_eval(p, t, texp=None): #returns an numpy ndarray light curve
                    e=e, omega=w, b=b)
         s.add_body(body)
 
-        tfold = t_folded(t, period, epoch) #where does this go?
 
     return s.light_curve(t, texp=texp) #returns a numpy array of flux
         

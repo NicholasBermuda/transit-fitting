@@ -84,12 +84,12 @@ class TransitModel(object):
                                                       #over all the times
         for i in range(self.lc.n_planets): #for all of the planets in the input
                                            #n_planets is from the KeplerLightCurve object
-            #creates the close array by appending indices that are close to the
+            #creates the close array by changing value of indices that are close to the
             #lowest value of the transit (width is passed into TransitModel)
             close += self.lc.close(i, width=self.width)
 
         #evaluates the light curve data at points where we're in transit
-        f[close] = lc_eval(p[1:], self.lc.t[close], texp=self.lc.texp)
+        f[close] = lc_eval(p, self.lc.t[close], texp=self.lc.texp)
         return f
 
     # THIS WILL BECOME A WRAPPER FOR THE THREE TYPES OF FIT
@@ -160,12 +160,12 @@ class TransitModel(object):
 
     def fit_multinest(self,n_live_points = 1000,basename='chains/1-', verbose=True, **kwargs):
 
-        #creates the directory for the output
-        folder = os.path.abspath(os.path.dirname(basename))
-        if not os.path.exists(folder):
-            os.makedirs(folder)
-
         self._mnest_basename = str(self.lc.koinum) + '/' + basename
+
+        #creates the directory for the output
+        folder = os.path.abspath(os.path.dirname(self._mnest_basename))
+        if not os.path.exists(self._mnest_basename):
+            os.makedirs(self._mnest_basename)
 
         #5 stellar parameters plus 6 parameters per planet
         self.n_params = 5 + 6*self.lc.n_planets
@@ -185,7 +185,7 @@ class TransitModel(object):
         and [period, epoch, b, rprs, ecc, omega] for each planet
         """
         #flat priors for fluxzp,rhostar,q1,q2,dilution
-        cube[0] = 2*cube[0] - 0.5#flux_zp in [0.5,1.5)
+        cube[0] = 0.02*cube[0] + 0.99#flux_zp in [0.5,1.5)
         cube[1] = 199.999*cube[1] + 1e-4 #rhostar in [1e-4, 200) --> should probably be log-flat in .lnprior()
         # cube[2] = unchanged # q1 in [0,1)
         # cube[3] = unchanged # q2 in [0,1)
