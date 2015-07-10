@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from transit import Central, System, Body
 
 from .utils import t_folded, lc_eval
+#t_folded returns the folded time using t, period, epoch
+#lc_eval returns numpy ndarray of flux values of a transit model
 
 
 
@@ -130,7 +132,8 @@ class LightCurve(object):
     def flux(self):
         return self._detrended_flux[~self.mask]
 
-    def median_detrend(self, window=75):
+    def median_detrend(self, window=75): 
+        #rolling median to normalise the flux read from archive
         f = self._flux.copy()
         f[self.any_intransit] = np.nan
         f_median = pd.rolling_median(f, 75, center=True,
@@ -212,17 +215,18 @@ class LightCurve(object):
         return params
         
     def plot_planets(self, width=2, **kwargs):
-        n = self.n_planets
-        fig, axs = plt.subplots(n, 1, sharex=True)
+        n = self.n_planets #number of planets
+        fig, axs = plt.subplots(n, 1, sharex=True) #setting up the number of subplots
 
-        fig.set_figwidth(8)
+        fig.set_figwidth(8) #dimensions of subplots
         fig.set_figheight(2*n)
         
         # Scale widths for each plot by duration.
         maxdur = max([p.duration for p in self.planets])
         widths = [width / (p.duration/maxdur) for p in self.planets]
         
-        for i,ax in enumerate(axs):
+        for i,ax in enumerate(axs): #plotting each individual planet with plot_planet
+        #breaks if there is only one planet
             self.plot_planet(i, ax=ax, width=widths[i], **kwargs)
             ax.set_xlabel('')
             ax.set_ylabel('')
@@ -243,26 +247,26 @@ class LightCurve(object):
                     **kwargs):
         """Plots planet i; masking out others, if present
         """
-        if ax is None:
+        if ax is None: #setting the axes
             fig, ax = plt.subplots(1, 1)
         else:
             fig = plt.gcf()
 
-        tfold = self.t_folded(i) * 24
-        close = self.close(i, width=width, only=True)
-        depth = (1 - self.flux)*1e6
+        tfold = self.t_folded(i) * 24 #folding the time over the period
+        close = self.close(i, width=width, only=True) #look at times close to transit
+        depth = (1 - self.flux)*1e6 #putting transit into ppm
         
-        ax.plot(tfold[close], depth[close], color=color,
+        ax.plot(tfold[close], depth[close], color=color, #plotting the transit
                 marker=marker, ms=ms, ls=ls, alpha=alpha, **kwargs)
 
-        ax.invert_yaxis()
+        ax.invert_yaxis() #labelling axes
         ax.set_xlabel('Time from mid-transit (hours)', fontsize=18)
         ax.set_ylabel('Depth (ppm)', fontsize=18)
 
-        ax.annotate(self.planets[i].name, xy=(0.8,0.05),
+        ax.annotate(self.planets[i].name, xy=(0.8,0.05), #planet name/KOI number
                     xycoords='axes fraction', fontsize=14)
 
-        ax.annotate('P = {}d'.format(self.planets[i].period),
+        ax.annotate('P = {}d'.format(self.planets[i].period), #period in days
                     xy=(0.05, 0.05), xycoords='axes fraction',
                     fontsize=14)
         

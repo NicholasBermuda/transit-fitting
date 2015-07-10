@@ -4,17 +4,19 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 import os, os.path
+import math
 
 from astropy import constants as const
 G = const.G.cgs.value
 M_sun = const.M_sun.cgs.value
 R_sun = const.R_sun.cgs.value
-DAY = 86400
+DAY = 86400 #in seconds
 
 
 import emcee
+import pymultinest #imports the pymultinest package
 
-try:
+try: #importing the triangle package to make triangle plots
     import triangle
 except ImportError:
     triangle=None
@@ -22,15 +24,25 @@ except ImportError:
 from transit.transit import InvalidParameterError
     
 from .utils import lc_eval
+# from .utils: Returns flux at given times, given parameters
+# takes Parameter vector, of length 4 + 6*Nplanets
+# p[0:4] = [rhostar, q1, q2, dilution]
+# p[4+i*6:10+i*6] = [period, epoch, b, rprs, e, w] for i-th planet
+# also takes times to evaluate t, and exposure time texp
 
 class TransitModel(object):
-    def __init__(self, lc, width=2, continuum_method='constant'):
-        self.lc = lc
-        self.width = width
-        self.continuum_method = continuum_method
+    def __init__(self, lc, width=2, continuum_method='constant',use_leastsq = False, use_emcee = False):
+        self.lc = lc #KeplerLightCurve object from kepler.py, which
+                     #inherits from LightCurve in lightcurve.py
+        self.width = width #width of the transit
+        self.continuum_method = continuum_method #type of continuum method
 
         self._bestfit = None
         self._samples = None
+
+        #the following is useful for the fit wrapper
+        self.use_leastsq = use_leastsq #if you want to use least squares for fitting
+        self.use_emcee = use_emcee #if you want to use emcee for fitting
 
 
     def continuum(self, p, t):
@@ -44,8 +56,10 @@ class TransitModel(object):
             Times at which to evaluate model.
         
         """
+        #creates an array of ones in the same shape as params
         p = np.atleast_1d(p)
         
+        #and returns the flux zero-point at all times in the lc
         return p[0]*np.ones_like(t)
         
     def evaluate(self, p):
@@ -62,23 +76,52 @@ class TransitModel(object):
             
 
         """
+        #starts by creating a continuum model at times in the light curve
         f = self.continuum(p[0], self.lc.t)
 
         # Identify points near any transit
-        close = np.zeros_like(self.lc.t).astype(bool)
-        for i in range(self.lc.n_planets):
+        close = np.zeros_like(self.lc.t).astype(bool) #intialising a boolean mask
+                                                      #over all the times
+        for i in range(self.lc.n_planets): #for all of the planets in the input
+                                           #n_planets is from the KeplerLightCurve object
+            #creates the close array by appending indices that are close to the
+            #lowest value of the transit (width is passed into TransitModel)
             close += self.lc.close(i, width=self.width)
 
+        #evaluates the light curve data at points where we're in transit
         f[close] = lc_eval(p[1:], self.lc.t[close], texp=self.lc.texp)
         return f
 
+    # THIS WILL BECOME A WRAPPER FOR THE THREE TYPES OF FIT
+    # def fit(self, **kwargs):
+    #     """
+    #     Wrapper for either :func:`fit_leastsq' or :func:`fit_emcee` or 
+    #     :func:`fit_multinest`
+
+    #     Default is to use MultiNest; set `use_emcee` or `fit_leastsq` 
+    #     to `True` or call them directly if you want to use MCMC or least squares
+    #     """
+    #     if self.use_leastsq:
+
+    #         #remove kwargs for emcee and multinest
+
+    #     elif self.use_emcee:
+    #         #remove kwargs for leastsq and multinest
+
+    #     else:
+    #         self.fit_multinest(**kwargs)
+
+
     def fit_leastsq(self, p0, method='Powell', **kwargs):
+        #using the scipy.optimize.minimize function
+        #cost is negative post because we're using minimize
         fit = minimize(self.cost, p0, method=method, **kwargs)
         self._bestfit = fit.x
         return fit
 
     def fit_emcee(self, p0=None, nwalkers=200, threads=1,
                   nburn=10, niter=100, **kwargs):
+        #fits the parameters using the emcee package
         if p0 is None:
             p0 = self.lc.default_params
 
@@ -114,31 +157,107 @@ class TransitModel(object):
 
         self.sampler = sampler
         return sampler
+
+    def fit_multinest(self,n_live_points = 1000,basename='chains/1-', verbose=True, **kwargs):
+
+        #creates the directory for the output
+        folder = os.path.abspath(os.path.dirname(basename))
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+        self._mnest_basename = str(self.lc.koinum) + '/' + basename
+
+        #5 stellar parameters plus 6 parameters per planet
+        self.n_params = 5 + 6*self.lc.n_planets
+
+        pymultinest.run(self.mnest_loglike,self.mnest_prior,self.n_params,
+                            n_live_points=n_live_points,outputfiles_basename=self._mnest_basename,verbose=verbose,**kwargs)
+
+        self._make_samples()
+
+    def mnest_prior(self, cube, ndims, nparams):
+        """
+        Transforms the unit cube into parameter cube
+
+        Uses simple flat priors, more complicated transormations will occur in lnprior
+
+        Priors are [flux_zp, rhostar, q1, q2, dilution] 
+        and [period, epoch, b, rprs, ecc, omega] for each planet
+        """
+        #flat priors for fluxzp,rhostar,q1,q2,dilution
+        cube[0] = 2*cube[0] - 0.5#flux_zp in [0.5,1.5)
+        cube[1] = 199.999*cube[1] + 1e-4 #rhostar in [1e-4, 200) --> should probably be log-flat in .lnprior()
+        # cube[2] = unchanged # q1 in [0,1)
+        # cube[3] = unchanged # q2 in [0,1)
+        # cube[4] = unchanged # dilution in [0,1)
+
+        counter = 5
+        for i in xrange(self.lc.n_planets): #iterating over each planet in the light curve system
+            #grabbing these prior values as the mean and error for flat priors
+            prior_p_mu, prior_p_sig = self.lc.planets[i]._period
+            prior_ep_mu, prior_ep_sig = self.lc.planets[i]._epoch
+            #setting the flat priors between mu +- 10sigma for period, epoch
+            cube[counter] = 20*prior_p_sig*cube[2*i] + prior_p_mu - 10*prior_p_sig #period
+            cube[counter+1] = 20*prior_ep_sig*cube[2*i+1] + prior_ep_mu - 10*prior_ep_sig #epoch
+            cube[counter+2] = 2*cube[counter+2]#b in [0,2)
+            cube[counter+3] = 0.5*cube[counter+3]#rprs in [0,0.5)
+            # cube[counter+4] = unchanged #ecc in [0,1)
+            cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
+            counter += 6
+
+    def mnest_loglike(self, cube, ndims, nparams):
+        """
+        Log likelihood function for MultiNest
+        """
+        #in stellarmodel.py code, we return not the loglike, but the logpost?
+        #i think i should be able to just pass the lc built from the cube to lnlike?
+        return self.lnpost(cube)
+
+    @property
+    def mnest_analyzer(self): #This returns an Analyzer object! Not the stats
+        """
+        PyMultNest Analyzer object associated with fit
+        """
+        return pymultinest.Analyzer(self.n_params, self._mnest_basename)
+
+    @property
+    def evidence(self): #This returns evidence and evidence error from the Analyzer object
+        """
+        Log(evidence), Log(evidence error) from the MultiNest fit
+        """
+        s = self.mnest_analyzer.get_stats()
+        return (s['global evidence'],s['global evidence error'])
         
     def __call__(self, p):
+        #TransitModelInstance() returns the log posterior 
         return self.lnpost(p)
 
-    def cost(self, p):
+    def cost(self, p): #useful for scipy.optimize.minimize
         return -self.lnpost(p)
     
     def lnpost(self, p):
+        #ln post = ln (prior*likelihood) = ln prior + ln likelihood
         prior = self.lnprior(p)
-        if np.isfinite(prior):
+        if np.isfinite(prior): #if the prior is finite, then set likelihood
             like = self.lnlike(p)
         else:
-            return prior
-        return prior + like
+            return prior #otherwise, just return the prior (aka -infinity)
+        return prior + like #if prior is finite, return the ln posterior
                     
     def lnlike(self, p):
         try:
             flux_model = self.evaluate(p)
         except InvalidParameterError:
             return -np.inf
-        
+        #returns the ln chi square statistic for the flux model (based on our input
+        #parameters) vs the data that we got from kepler
         return (-0.5 * (flux_model - self.lc.flux)**2 / self.lc.flux_err**2).sum()
         
     def lnprior(self, p):
+        #doesn't implement priors for stellar paremeters at the moment
         flux_zp, rhostar, q1, q2, dilution = p[:5]
+        
+        #invalid parameter ranges
         if not (0 <= q1 <=1 and 0 <= q2 <= 1):
             return -np.inf
         if rhostar < 0:
@@ -178,6 +297,8 @@ class TransitModel(object):
 
             # log-flat prior on rprs
             tot += np.log(1 / rprs)
+
+            #beta function for eccen
             
         return tot
 
@@ -203,38 +324,68 @@ class TransitModel(object):
 
     @property
     def samples(self):
-        if not hasattr(self,'sampler') and self._samples is None:
-            raise AttributeError('Must run MCMC (or load from file) '+
-                                 'before accessing samples')
-        
-        if self._samples is not None:
-            df = self._samples
-        else:
-            self._make_samples()
-            df = self._samples
+        if self.use_emcee:
+            if not hasattr(self,'sampler') and self._samples is None:
+                raise AttributeError('Must run MCMC (or load from file) '+
+                                     'before accessing samples')
+            
+            if self._samples is not None:
+                df = self._samples
+            else:
+                self._make_samples()
+                df = self._samples
 
+        else:
+            if not os.path.exists(self._mnest_basename + 'post_equal_weights.dat'):
+                raise AttributeError('Must run MultiNest before accessing samples')
+            if self._samples is not None:
+                df = self._samples
+            else:
+                self._make_samples()
+                df = self._samples
         return df
         
     def _make_samples(self):
-        flux_zp = self.sampler.flatchain[:,0]
-        rho = self.sampler.flatchain[:,1]
-        q1 = self.sampler.flatchain[:,2]
-        q2 = self.sampler.flatchain[:,3]
-        dilution = self.sampler.flatchain[:,4]
+        if self.use_emcee:
+            flux_zp = self.sampler.flatchain[:,0]
+            rho = self.sampler.flatchain[:,1]
+            q1 = self.sampler.flatchain[:,2]
+            q2 = self.sampler.flatchain[:,3]
+            dilution = self.sampler.flatchain[:,4]
 
-        df = pd.DataFrame(dict(flux_zp=flux_zp,
-                               rho=rho, q1=q1, q2=q2,
-                               dilution=dilution))
+            df = pd.DataFrame(dict(flux_zp=flux_zp,
+                                   rho=rho, q1=q1, q2=q2,
+                                   dilution=dilution))
 
-        for i in range(self.lc.n_planets):
-            for j, par in enumerate(['period', 'epoch', 'b', 'rprs',
-                                     'ecc', 'omega']):
-                column = self.sampler.flatchain[:, 5+j+i*6]
-                
-                if par=='omega':
-                    column = column % (2*np.pi)
+            for i in range(self.lc.n_planets):
+                for j, par in enumerate(['period', 'epoch', 'b', 'rprs',
+                                         'ecc', 'omega']):
+                    column = self.sampler.flatchain[:, 5+j+i*6]
                     
-                df['{}_{}'.format(par,i+1)] = column
+                    if par=='omega':
+                        column = column % (2*np.pi)
+                        
+                    df['{}_{}'.format(par,i+1)] = column
+        else:
+            post_samples = np.loadtxt(self._mnest_basename + 'post_equal_weights.dat')
+            flux_zp = post_samples[:,0]
+            rho = post_samples[:,1]
+            q1 = post_samples[:,2]
+            q2 = post_samples[:,3]
+            dilution = post_samples[:,4]
+
+            df = pd.DataFrame(dict(flux_zp=flux_zp,rho=rho,q1=q1,q2=q2,dilution=dilution))
+
+
+            for i in range(self.lc.n_planets):
+                for j,par in enumerate(['period', 'epoch', 'b', 'rprs',
+                                         'ecc', 'omega']):
+                    column = post_samples[:,5+j+i*6]
+
+                    if par == 'omega':
+                        column = column %(2*np.pi)
+                    df['{}_{}'.format(par,i+1)] = column
+
 
         self._samples = df
 

@@ -4,9 +4,9 @@ import re
 import pandas as pd
 import numpy as np
 
-import kplr
+import kplr #using the kplr package to interact with the Kepler data
 
-from .lightcurve import LightCurve, Planet
+from .lightcurve import LightCurve, Planet 
 
 KEPLER_CADENCE = 1626./86400
 
@@ -40,12 +40,12 @@ def all_LCdata(koi, mask_bad=False):
     return df[ok]
 
 def kepler_planets(koinum, i):
+    #reads in the planets from a koi and adds them to the list of planets
+    #as a Planet object
     client = kplr.API()
     
     if type(i)==int:
         ilist = [i]
-    elif i is None:
-        ilist = range(1, count+1)
     else:
         ilist = i
 
@@ -76,14 +76,17 @@ class KeplerLightCurve(LightCurve):
         
     """
     def __init__(self, koinum, i=None):
-        client = kplr.API()
-        koi = client.koi(koinum + 0.01)
-        count = koi.koi_count
-        lcdata = all_LCdata(koi)
+        self.koinum = koinum #used for multinest basename folder organisation
+        client = kplr.API() #interacting with Kepler archive
+        koi = client.koi(koinum + 0.01) #getting the first planet to download info
+        if i is None: #if there is no input
+            i = range(1,koi.koi_count+1) #then we create an array of all the planets
+        lcdata = all_LCdata(koi) #downloads all the light curve data
 
+        #mask out NaNs
         mask = ~np.isfinite(lcdata['PDCSAP_FLUX']) | lcdata['SAP_QUALITY']
 
-        kois, planets = kepler_planets(koinum, i=i)
+        kois, planets = kepler_planets(koinum, i=i) #get the kois and planets
         self.kois = kois
         
         super(KeplerLightCurve, self).__init__(lcdata['TIME'],
@@ -93,7 +96,8 @@ class KeplerLightCurve(LightCurve):
                                                  texp=KEPLER_CADENCE)
 
     @property
-    def archive_params(self):
+    def archive_params(self): 
+    #reads in the parameters from the archive
         params = [1, self.kois[0].koi_srho, 0.5, 0.5, 0]
         
         for k in self.kois:
@@ -102,6 +106,7 @@ class KeplerLightCurve(LightCurve):
         return params
 
     def archive_light_curve(self, t):
+    #reads in the light curve data from the archive
         return self.light_curve(self.archive_params, t)
 
 
