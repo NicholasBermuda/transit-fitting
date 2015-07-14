@@ -6,7 +6,7 @@ import numpy as np
 
 import kplr #using the kplr package to interact with the Kepler data
 
-from .lightcurve import LightCurve, Planet 
+from .lightcurve import LightCurve, Planet, BinaryLightCurve
 
 KEPLER_CADENCE = 1626./86400
 
@@ -75,7 +75,7 @@ class KeplerLightCurve(LightCurve):
         list of integers, or None (in which case all planets will be modeled).
         
     """
-    def __init__(self, koinum, i=None):
+    def __init__(self, koinum, i=None,**kwargs):
         self.koinum = koinum #used for multinest basename folder organisation
         client = kplr.API() #interacting with Kepler archive
         koi = client.koi(koinum + 0.01) #getting the first planet to download info
@@ -93,7 +93,7 @@ class KeplerLightCurve(LightCurve):
                                                  lcdata['PDCSAP_FLUX'],
                                                  lcdata['PDCSAP_FLUX_ERR'],
                                                  mask=mask, planets=planets,
-                                                 texp=KEPLER_CADENCE)
+                                                 texp=KEPLER_CADENCE, **kwargs)
 
     @property
     def archive_params(self): 
@@ -109,11 +109,43 @@ class KeplerLightCurve(LightCurve):
     #reads in the light curve data from the archive
         return self.light_curve(self.archive_params, t)
 
+class BinaryKeplerLightCurve(BinaryLightCurve):
+    """BinaryLightCurve of a Kepler star
 
-    @classmethod
-    def from_hdf(cls, *args, **kwargs):
-        raise NotImplementedError
+    :param koinum:
+        KOI number (integer)
+
+    :param i:
+        Planet number, either integer (1 through koi_count),
+        list of integers, or None (in which case all planets will be modeled).
+    """ 
+    def __init__(self, koinum, i=None,rhostarA=None,rhostarB=None,dilution = None,**kwargs):
+        self.koinum = koinum #used for multinest basename folder organisation
+        client = kplr.API() #interacting with Kepler archive
+        koi = client.koi(koinum + 0.01) #getting the first planet to download info
+        if i is None: #if there is no input
+            i = range(1,koi.koi_count+1) #then we create an array of all the planets
+        lcdata = all_LCdata(koi) #downloads all the light curve data
+
+        #mask out NaNs
+        mask = ~np.isfinite(lcdata['PDCSAP_FLUX']) | lcdata['SAP_QUALITY']
+
+        kois, planets = kepler_planets(koinum, i=i) #get the kois and planets
+        self.kois = kois
+        
+        super(BinaryKeplerLightCurve, self).__init__(lcdata['TIME'],
+                                                 lcdata['PDCSAP_FLUX'],
+                                                 lcdata['PDCSAP_FLUX_ERR'],
+                                                 rhostarA=rhostarA,rhostarB=rhostarB,
+                                                 dilution = dilution,
+                                                 mask=mask, planets=planets,
+                                                 texp=KEPLER_CADENCE, **kwargs)        
+
+
+#    @classmethod
+#    def from_hdf(cls, *args, **kwargs):
+#        raise NotImplementedError
     
-    @classmethod
-    def from_df(cls, df, **kwargs):
-        raise NotImplementedError
+#    @classmethod
+#    def from_df(cls, df, **kwargs):
+#        raise NotImplementedError

@@ -6,6 +6,8 @@ from scipy.optimize import minimize
 import os, os.path
 import math
 
+from scipy.special import beta
+
 from astropy import constants as const
 G = const.G.cgs.value
 M_sun = const.M_sun.cgs.value
@@ -31,11 +33,24 @@ from .utils import lc_eval
 # also takes times to evaluate t, and exposure time texp
 
 class TransitModel(object):
-    def __init__(self, lc, width=2, continuum_method='constant',use_leastsq = False, use_emcee = False):
-        self.lc = lc #KeplerLightCurve object from kepler.py, which
-                     #inherits from LightCurve in lightcurve.py
-        self.width = width #width of the transit
-        self.continuum_method = continuum_method #type of continuum method
+    """Model of one or more transiting planets around a particular star
+    
+    :param lc:
+        LightCurve object
+
+    :param width:
+        The number of durations around a transit calculated to evaluate
+        model.  Model is evaluated between ``tc - width*duration`` and
+        ``tc + width*duration``, where ``tc`` is the transit center time.
+
+    """
+    def __init__(self, lc, width=2, continuum_method='constant',use_leastsq=False,use_emcee=False):
+
+        self.lc = lc #KeplerLightCurve object
+        self.width = width
+        self.continuum_method = continuum_method
+
+
 
         self._bestfit = None
         self._samples = None
@@ -161,7 +176,7 @@ class TransitModel(object):
         self.sampler = sampler
         return sampler
 
-    def fit_multinest(self,n_live_points = 1000,basename='chains/1-', verbose=True, **kwargs):
+    def fit_multinest(self,n_live_points = 1000,basename='chains/1-', verbose=True,overwrite=True,**kwargs):
 
         self._mnest_basename = str(self.lc.koinum) + '/' + basename
 
@@ -170,11 +185,11 @@ class TransitModel(object):
         if not os.path.exists(self._mnest_basename):
             os.makedirs(self._mnest_basename)
 
-        #5 stellar parameters plus 6 parameters per planet
-        self.n_params = 5 + 6*self.lc.n_planets
+        if hasattr(self,'which'): self.n_params = 9 + 6*self.lc.n_planets
+        else: self.n_params = 5 + 6*self.lc.n_planets
 
         pymultinest.run(self.mnest_loglike,self.mnest_prior,self.n_params,
-                            n_live_points=n_live_points,outputfiles_basename=self._mnest_basename,verbose=verbose,**kwargs)
+                            n_live_points=n_live_points,outputfiles_basename=self._mnest_basename,verbose=verbose,overwrite=overwrite,**kwargs)
 
         self._make_samples()
 
@@ -200,8 +215,8 @@ class TransitModel(object):
             prior_p_mu, prior_p_sig = self.lc.planets[i]._period
             prior_ep_mu, prior_ep_sig = self.lc.planets[i]._epoch
             #setting the flat priors between mu +- 10sigma for period, epoch
-            cube[counter] = 20*prior_p_sig*cube[2*i] + prior_p_mu - 10*prior_p_sig #period
-            cube[counter+1] = 20*prior_ep_sig*cube[2*i+1] + prior_ep_mu - 10*prior_ep_sig #epoch
+            cube[counter] = 20*prior_p_sig*cube[counter] + prior_p_mu - 10*prior_p_sig #period
+            cube[counter+1] = 20*prior_ep_sig*cube[counter+1] + prior_ep_mu - 10*prior_ep_sig #epoch
             cube[counter+2] = 2*cube[counter+2]#b in [0,2)
             cube[counter+3] = 0.5*cube[counter+3]#rprs in [0,0.5)
             # cube[counter+4] = unchanged #ecc in [0,1)
@@ -257,9 +272,8 @@ class TransitModel(object):
         return (-0.5 * (flux_model - self.lc.flux)**2 / self.lc.flux_err**2).sum()
         
     def lnprior(self, p):
-        #doesn't implement priors for stellar paremeters at the moment
         flux_zp, rhostar, q1, q2, dilution = p[:5]
-        
+
         #invalid parameter ranges
         if not (0 <= q1 <=1 and 0 <= q2 <= 1):
             return -np.inf
@@ -269,8 +283,25 @@ class TransitModel(object):
             return -np.inf
 
         tot = 0
+
+        # Apply stellar density prior if relevant.
+        if self.lc.rhostar is not None:
+            tot += np.log(self.lc.rhostar_pdf(rhostar))
+            
+        if self.lc.dilution is not None:
+            tot += np.log(self.lc.dilution_pdf(dilution))
+
         for i in xrange(self.lc.n_planets):
             period, epoch, b, rprs, e, w = p[5+i*6:11+i*6]
+
+            if not 0 < e < 1:
+                return -np.inf
+            if period <= 0:
+                return -np.inf
+            if rprs <= 0:
+                return -np.inf
+            if b < 0 or b > (1 + rprs):
+                return -np.inf
 
             factor = 1.0
             if e > 0:
@@ -282,14 +313,6 @@ class TransitModel(object):
             if arg > 1.0:
                 return -np.inf
                 
-            if period <= 0:
-                return -np.inf
-            if not 0 <= e < 1:
-                return -np.inf
-            if b < 0:
-                return -np.inf
-            if rprs <= 0:
-                return -np.inf
             
             # Priors on period, epoch based on discovery measurements
             prior_p, prior_p_err = self.lc.planets[i]._period
@@ -301,7 +324,11 @@ class TransitModel(object):
             # log-flat prior on rprs
             tot += np.log(1 / rprs)
 
-            #beta function for eccen
+
+            # Beta prior on eccentricity
+            a,b = (0.4497, 1.7938)
+            eccprior = 1/beta(a,b) * e**(a-1) * (1 - e)**(b-1)
+            tot += np.log(eccprior)
             
         return tot
 
@@ -393,6 +420,7 @@ class TransitModel(object):
         self._samples = df
 
     def triangle(self, params=None, i=0, query=None, extent=0.999,
+                 planet_only=False,
                  **kwargs):
         """
         Makes a nifty corner plot for planet i
@@ -400,7 +428,8 @@ class TransitModel(object):
         Uses :func:`triangle.corner`.
 
         :param params: (optional)
-            Names of columns to plot.
+            Names of columns to plot.  Set planet_only to be ``True``
+            to leave out star params.
 
         :param i:
             Planet number (starting from 0)
@@ -422,7 +451,10 @@ class TransitModel(object):
             raise ImportError('please run "pip install triangle_plot".')
         
         if params is None:
-            params = ['dilution', 'rho', 'q1', 'q2']
+            if planet_only:
+                params = []
+            else:
+                params = ['dilution', 'rho', 'q1', 'q2']
             for par in ['period', 'epoch', 'b', 'rprs',
                         'ecc', 'omega']:
                 params.append('{}_{}'.format(par, i+1))
@@ -533,3 +565,213 @@ class TransitModel(object):
         
         return mod
     
+
+class BinaryTransitModel(TransitModel):
+    """
+    TransitModel of two stars, for now can only fit with MultiNest
+
+    :param lc:
+        BinaryLightCurve object.
+
+    :param which:
+        e.g., for three-planet system: ['A', 'A', 'B']
+
+    """
+    def __init__(self, lc, which=None,width = 2):
+        
+        if which == None:
+            self.which = ['A'] * lc.n_planets
+        self.which = which
+
+        super(BinaryTransitModel,self).__init__(lc,width = width)
+
+        def evaluate(self, par):
+            """
+            Evaluates light curve model at light curve times.
+
+            Difference with TransitModel is that there are now two stars.
+
+
+            :param p:
+                Parameter vector, of length 1 + 4*2 + 6*Nplanets
+                p[0] = flux zero-point
+                p[1:5] = [rhostarA, q1A, q2A, dilutionA]
+                p[5:9] = [rhostarB, q1B, q2B, dilutionB]
+                p[9+i*6 : 15+i*6] = [per, ep, b, rprs, e, w] for i-th planet  
+            """
+            
+            # So as to be careful to not pass slices of par around...
+            p = [par[i] for i in range(9+6*self.lc.n_planets)]
+            pA,pB = p[0:5],[p[0],p[5],p[6],p[7],p[8]]
+
+            f = self.continuum(p[0], self.lc, t)
+            depthA = np.copy(f)
+            depthB = np.copy(f)
+
+            close_A = np.zeros_like(self.lc.t).astype(bool)
+            close_B = np.zeros_like(self.lc.t).astype(bool)
+
+            # Must use self.which to determine which star parameters
+            # get passed to lc_eval for each planet.
+            # Build close_A and close_B properly, depending on self.which
+            for i in xrange(self.lc.n_planets):
+                if which[i] == 'A':
+                    pA = np.append(pA,p[9+i*6 : 15+i*6])
+                    close += self.lc.close(i,width=self.width)
+                else:
+                    pB = np.append(pB,p[9+i*6 : 15+i*6])
+                    close += self.lc.close(i,width=self.width)
+
+            depthA[close_A] = 1-(lc_eval(pA[1:],self.lc.t[close_A],texp=self.lc.texp))
+            depthB[close_B] = 1-(lc_eval(pB[1:],self.lc.t[close_B],texp=self.lc.texp))
+            totaldepth = depthA + depthB
+            f = 1 - totaldepth
+            
+            return f
+
+        def mnest_prior(self, cube, ndims, nparams):
+            """
+            Transforms the unit cube into parameter cube
+
+            Uses simple flat priors, more complicated transformations will occur in lnprior
+
+            Priors are flux_zp, [rhostar, q1, q2, dilution] for each star
+            and [period, epoch, b, rprs, ecc, omega] for each planet
+            """
+            #flat priors
+            cube[0] = 0.02*cube[0] + 0.99#flux_zp in [0.99,1.01)
+
+            #stellar parameters
+            cube[1] = 199.999*cube[1] + 1e-4 #rhostarA in [1e-4, 200) --> should be log-flat in .lnprior()
+            # cube[2] = unchanged # q1A in [0,1)
+            # cube[3] = unchanged # q2A in [0,1)
+            # cube[4] = unchanged # dilutionA in [0,1)
+
+            cube[5] = 199.999*cube[5] + 1e-4 #rhostarB in [1e-4,200) --> should be log-flat in .lnprior()
+            #cube[6] = unchanged # q1B in [0,1)
+            #cube[7] = unchanged # q2B in [0,1)
+            #cube[8] = unchanged #dilutionB in [0,1)
+
+            counter = 9
+            for i in xrange(self.lc.n_planets): #iterating over each planet in the light curve system
+                #grabbing these prior values as the mean and error for flat priors
+                prior_p_mu, prior_p_sig = self.lc.planets[i]._period
+                prior_ep_mu, prior_ep_sig = self.lc.planets[i]._epoch
+                #setting the flat priors between mu +- 10sigma for period, epoch
+                cube[counter] = 20*prior_p_sig*cube[counter] + prior_p_mu - 10*prior_p_sig #period
+                cube[counter+1] = 20*prior_ep_sig*cube[counter+1] + prior_ep_mu - 10*prior_ep_sig #epoch
+                cube[counter+2] = 2*cube[counter+2]#b in [0,2)
+                cube[counter+3] = 0.5*cube[counter+3]#rprs in [0,0.5)
+                # cube[counter+4] = unchanged #ecc in [0,1)
+                cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
+                counter += 6
+
+        def lnprior(self, p):
+            flux_zp, rhostarA, q1A, q2A, dilutionA = p[:5]
+            rhostarB, q1B, q2B, dilutionB = p[5:9]
+
+            #invalid parameter ranges
+            if not (0 <= q1A <=1 and 0 <= q2A <= 1):
+                return -np.inf
+            if rhostarA < 0:
+                return -np.inf
+            if not (0 <= dilutionA < 1):
+                return -np.inf
+
+            if not (0 <= q1B <=1 and 0 <= q2B <= 1):
+                return -np.inf
+            if rhostarB < 0:
+                return -np.inf
+            if not (0 <= dilutionB < 1):
+                return -np.inf
+
+            tot = 0
+
+            # Apply stellar density prior if relevant.
+            if self.lc.rhostarA is not None:
+                tot += np.log(self.lc.rhostarA_pdf(rhostarA))
+
+            if self.lc.rhostarB is not None:
+                tot += np.log(self.lc.rhostarB_pdf(rhostarB))
+                
+            # Apply dilution prior if relevant
+            if self.lc.dilutionA is not None:
+                tot += np.log(self.lc.dilutionA_pdf(dilutionA))
+
+            if self.lc.dilutionB is not None:
+                tot += np.log(self.lc.dilutionB_pdf(dilutionB))
+
+            for i in xrange(self.lc.n_planets):
+                period, epoch, b, rprs, e, w = p[9+i*6:11+i*6]
+
+                if not 0 < e < 1:
+                    return -np.inf
+                if period <= 0:
+                    return -np.inf
+                if rprs <= 0:
+                    return -np.inf
+                if b < 0 or b > (1 + rprs):
+                    return -np.inf
+
+                factor = 1.0
+                if e > 0:
+                    factor = (1 + e * np.sin(w)) / (1 - e * e)
+
+                aR = (rhostar * G * (period*DAY)**2 / (3*np.pi))**(1./3)
+                    
+                arg = b * factor/aR
+                if arg > 1.0:
+                    return -np.inf
+                    
+                
+                # Priors on period, epoch based on discovery measurements
+                prior_p, prior_p_err = self.lc.planets[i]._period
+                tot += -0.5*(period - prior_p)/prior_p_err**2
+
+                prior_ep, prior_ep_err = self.lc.planets[i]._epoch
+                tot += -0.5*(epoch - prior_ep)/prior_ep_err**2
+
+                # log-flat prior on rprs
+                tot += np.log(1 / rprs)
+
+
+                # Beta prior on eccentricity
+                a,b = (0.4497, 1.7938)
+                eccprior = 1/beta(a,b) * e**(a-1) * (1 - e)**(b-1)
+                tot += np.log(eccprior)
+                
+            return tot
+
+        def _make_samples(self):
+            post_samples = np.loadtxt(self._mnest_basename + 'post_equal_weights.dat')
+            flux_zp = post_samples[:,0]
+            rhoA = post_samples[:,1]
+            q1A = post_samples[:,2]
+            q2A = post_samples[:,3]
+            dilutionA = post_samples[:,4]
+            rhoB = post_samples[:,5]
+            q1B = post_samples[:,6]
+            q2B = post_samples[:,7]
+            dilutionB = post_samples[:,8]
+
+            df = pd.DataFrame(dict(flux_zp=flux_zp,rhoA=rhoA,q1A=q1A,q2A=q2A,dilutionA=dilutionA,
+                                    rhoB=rhoB,q1B=q1B,q2B=q2B,dilutionB=dilutionB))
+
+
+            for i in range(self.lc.n_planets):
+                whichplanet = self.which[i]
+                for j,par in enumerate(['period', 'epoch', 'b', 'rprs',
+                                         'ecc', 'omega']):
+                    column = post_samples[:,9+j+i*6]
+
+                    if par == 'omega':
+                        column = column %(2*np.pi)
+                    df['{}_{}_{}'.format(par,i+1,whichplanet)] = column
+
+
+            self._samples = df
+
+        def triangle(self, params=None, **kwargs):
+            # Set default params appropriately
+            
+            super(BinaryTransitModel, self).triangle(params, **kwargs)

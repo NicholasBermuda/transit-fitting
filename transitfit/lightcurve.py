@@ -8,6 +8,9 @@ import os, os.path
 
 import matplotlib.pyplot as plt
 
+from scipy.stats import norm
+from scipy.stats import gaussian_kde
+
 from transit import Central, System, Body
 
 from .utils import t_folded, lc_eval
@@ -81,9 +84,19 @@ class LightCurve(object):
         Exposure time.  If not provided, will be assumed to be median
         of delta-t.
         
+    :param rhostar:
+        Stellar density.  Can be passed as (mu, sigma) or
+        as array of posterior samples.
+
+    :param dilution:
+        Dilution (fraction of light in aperture *not* from 
+        planet host star).  Can be passed as (mu, sigma) or
+        array of posterior samples.
+
     """
     def __init__(self, time, flux, flux_err=0.0001,
                  mask=None, texp=None, planets=None,
+                 rhostar=None, dilution=None,
                  detrend=True):
 
         
@@ -94,6 +107,12 @@ class LightCurve(object):
         if texp is None:
             texp = np.median(time[1:]-time[:-1])
         self.texp = texp
+
+        self.rhostar = rhostar
+        self._rhostar_pdf = None
+
+        self.dilution = dilution
+        self._dilution_pdf = None
         
         if planets is None:
             planets = []
@@ -114,7 +133,11 @@ class LightCurve(object):
 
     @property
     def f(self):
-        return self.f
+        return self.flux
+
+    @property
+    def ferr(self):
+        return self.flux_err
     
     @property
     def time(self):
@@ -199,6 +222,29 @@ class LightCurve(object):
         """returns a 2-d array of times/fluxes with subsequent transits in each row
         """
 
+    def _property_pdf(self, prop):
+        p = getattr(self,prop)
+        if len(p)==2:
+            dist = norm(*p)
+            return dist.pdf
+        else:
+            return gaussian_kde(p)
+
+    @property
+    def rhostar_pdf(self):
+        if self._rhostar_pdf is None:
+            self._rhostar_pdf = self._property_pdf('rhostar')
+
+        return self._rhostar_pdf
+            
+    @property
+    def dilution_pdf(self):
+        if self._dilution_pdf is None:
+            self._dilution_pdf = self._property_pdf('dilution')
+
+        return self._dilution_pdf
+                
+
     @property
     def default_params(self):
         """Quick and dirty guesses for params
@@ -206,11 +252,23 @@ class LightCurve(object):
         """
         params = [1, 4, 0.5, 0.5, 0]
 
+        if self.rhostar is not None:
+            if len(self.rhostar)==2:
+                params[1] = self.rhostar[0]
+            else:
+                params[1] = np.mean(self.rhostar)
+
+        if self.dilution is not None:
+            if len(self.dilution)==2:
+                params[4] = self.dilution[0]
+            else:
+                params[4] = np.mean(self.dilution)
 
         for i,p in enumerate(self.planets):
             minflux = np.median(self.flux[self.close(i, width=0.2, only=True)])
-            ror = np.sqrt(1 - minflux)
-            params += [p.period, p.epoch, 0.5, ror, 0, 0]
+            ror = np.sqrt((1 - minflux ) / 
+                          (1 - params[4])) #corrected for dilution
+            params += [p.period, p.epoch, 0.5, ror, 0.01, 0]
 
         return params
         
@@ -224,9 +282,11 @@ class LightCurve(object):
         # Scale widths for each plot by duration.
         maxdur = max([p.duration for p in self.planets])
         widths = [width / (p.duration/maxdur) for p in self.planets]
+
+        if n == 1: #making sure you can enumerate axs
+            axs = [axs]
         
         for i,ax in enumerate(axs): #plotting each individual planet with plot_planet
-        #breaks if there is only one planet
             self.plot_planet(i, ax=ax, width=widths[i], **kwargs)
             ax.set_xlabel('')
             ax.set_ylabel('')
@@ -304,6 +364,16 @@ class LightCurve(object):
                 store.close()
 
         self.dataframe.to_hdf(filename, '{}/lc'.format(path))
+        if hasattr(self,'which'):
+            if self.rhostarA is not None:
+                self.rhostarA.to_hdf(filename,'{}/rhostarA'.format(path))
+                self.rhostarB.to_hdf(filename,'{}/rhostarB'.format(path))
+                self.dilutionA.to_hdf(filename,'{}/dilutionA'.format(path))
+                self.dilutionB.to_hdf(filename,'{}/dilutionB'.format(path))
+        else:
+            if self.rhostar is not None:
+                self.rhostar.to_hdf(filename, '{}/rhostar'.format(path))
+                self.dilution.to_hdf(filename, '{}/dilution'.format(path))
 
         store = pd.HDFStore(filename)
         attrs = store.get_storer('{}/lc'.format(path)).attrs
@@ -328,8 +398,18 @@ class LightCurve(object):
             :class:`LightCurve` object.
         """
         store = pd.HDFStore(filename)
+        print('store')
+        
         try:
             df = store['{}/lc'.format(path)]
+            try:
+                rhostar = store['{}/rhostar'.format(path)]
+            except:
+                rhostar = None
+            try:
+                dilution = store['{}/dilution'.format(path)]
+            except:
+                dilution = None
             attrs = store.get_storer('{}/lc'.format(path)).attrs        
         except:
             store.close()
@@ -338,7 +418,8 @@ class LightCurve(object):
         planets = attrs.planets
         store.close()
 
-        return cls.from_df(df, texp=texp, planets=planets)
+        return cls.from_df(df, texp=texp, planets=planets,
+                            rhostar=rhostar,dilution=dilution)
     
     @property
     def dataframe(self):
@@ -356,10 +437,142 @@ class LightCurve(object):
             
     @classmethod
     def from_df(cls, df, **kwargs):
-        new = cls(df['time'], df['flux'], df['flux_err'],
-                  mask=df['mask'], detrend=False,
-                  **kwargs)
+        new = LightCurve(df['time'], df['flux'], df['flux_err'],
+                  mask=df['mask'], detrend=False,**kwargs)
 
         new._detrended_flux = df['detrended_flux']
         
         return new
+
+
+class BinaryLightCurve(LightCurve):
+    """
+    LightCurve of a binary star system
+
+    Like LightCurve, but takes rhostar_A and 
+    rhostar_B.  Dilution refers to primary.
+
+    """
+    def __init__(self, time, flux, flux_err=0.0001,
+                 rhostarA=None, rhostarB=None,
+                 dilution=None, **kwargs):
+        
+        self.rhostarA = rhostarA
+        self.rhostarA_pdf = None
+        self.rhostarB = rhostarB
+        self.rhostarB_pdf = None
+        self.dilutionA = dilution
+        self.dilutionA_pdf = None
+        if dilution is None: self.dilutionB = None
+        else: self.dilutionB = 1-dilution
+        self.dilutionB_pdf = None
+
+        super(BinaryLightCurve,self).__init__(time,flux,flux_err,**kwargs)
+        pass
+
+    @property
+    def rhostar_pdf_A(self):
+        if self.rhostarA_pdf is None:
+            self.rhostarA_pdf = self._property_pdf('rhostarA')
+
+        return self.rhostarA_pdf
+
+    @property
+    def rhostar_pdf_B(self):
+        if self.rhostarB_pdf is None:
+            self.rhostarB_pdf = self._property_pdf('rhostarB')
+
+        return self.rhostarB_pdf
+
+    @property
+    def dilution_pdf_A(self):
+        if self.dilutionA_pdf is None:
+            self.dilutionA_pdf = self._property_pdf('dilutionA')
+
+        return self.dilutionA_pdf
+
+    @property
+    def dilution_pdf_B(self):
+        if self.dilutionB_pdf is None:
+            self.dilutionB_pdf = self._property_pdf('dilutionB')
+
+        return self.dilutionB_pdf  
+
+    @property #still to update!
+    def default_params(self):
+        """Quick and dirty guesses for params
+
+        """
+        params = [1, 4, 0.5, 0.5, 0]
+
+        if self.rhostar is not None:
+            if len(self.rhostar)==2:
+                params[1] = self.rhostar[0]
+            else:
+                params[1] = np.mean(self.rhostar)
+
+        if self.dilution is not None:
+            if len(self.dilution)==2:
+                params[4] = self.dilution[0]
+            else:
+                params[4] = np.mean(self.dilution)
+
+        for i,p in enumerate(self.planets):
+            minflux = np.median(self.flux[self.close(i, width=0.2, only=True)])
+            ror = np.sqrt((1 - minflux ) / 
+                          (1 - params[4])) #corrected for dilution
+            params += [p.period, p.epoch, 0.5, ror, 0.01, 0]
+
+        return params  
+
+    @classmethod
+    def from_df(cls, df, **kwargs):
+        new = BinaryLightCurve(df['time'], df['flux'], df['flux_err'],
+                    mask=df['mask'], detrend=False,**kwargs)
+
+        new._detrended_flux = df['detrended_flux']
+        
+        return new
+
+    @classmethod
+    def load_hdf(cls, filename, path=''):
+        """
+        A class method to load a saved LightCurve from an HDF5 file.
+
+        File must have been created by a call to :func:`LightCurve.save_hdf`.
+
+        :param filename:
+            H5 file to load.
+
+        :param path: (optional)
+            Path within HDF file.
+
+        :return:
+            :class:`LightCurve` object.
+        """
+        store = pd.HDFStore(filename)
+        
+        try:
+            df = store['{}/lc'.format(path)]
+            try:
+                rhostarA = store['{}/rhostarA'.format(path)]
+            except:
+                rhostarA = None            
+            try:
+                rhostarB = store['{}/rhostarB'.format(path)]
+            except:
+                rhostarB = None
+            try:
+                dilution = store['{}/dilutionA'.format(path)]
+            except:
+                dilution = None
+            attrs = store.get_storer('{}/lc'.format(path)).attrs        
+        except:
+            store.close()
+            raise
+        texp = attrs.texp
+        planets = attrs.planets
+        store.close()
+
+        return cls.from_df(df, texp=texp, planets=planets, 
+                           rhostarA=rhostarA,rhostarB=rhostarB, dilution=dilution)
