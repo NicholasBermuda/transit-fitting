@@ -5,6 +5,7 @@ import pandas as pd
 from scipy.optimize import minimize
 import os, os.path
 import math
+import shutil
 
 from scipy.special import beta
 
@@ -180,16 +181,19 @@ class TransitModel(object):
 
         self._mnest_basename = str(self.lc.koinum) + '/' + basename
 
+        if overwrite: shutil.rmtree(str(self.lc.koinum))
+
         #creates the directory for the output
         folder = os.path.abspath(os.path.dirname(self._mnest_basename))
         if not os.path.exists(self._mnest_basename):
             os.makedirs(self._mnest_basename)
 
+
         if hasattr(self,'which'): self.n_params = 9 + 6*self.lc.n_planets
         else: self.n_params = 5 + 6*self.lc.n_planets
 
         pymultinest.run(self.mnest_loglike,self.mnest_prior,self.n_params,
-                            n_live_points=n_live_points,outputfiles_basename=self._mnest_basename,verbose=verbose,overwrite=overwrite,**kwargs)
+                            n_live_points=n_live_points,outputfiles_basename=self._mnest_basename,verbose=verbose,**kwargs)
 
         self._make_samples()
 
