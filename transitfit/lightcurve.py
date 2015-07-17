@@ -38,7 +38,7 @@ class Planet(object):
 
         self.duration = duration
 
-        self.name = namep
+        self.name = name
     @property
     def period(self):
         return self._period[0]
@@ -376,6 +376,7 @@ class LightCurve(object):
 
         store = pd.HDFStore(filename)
         attrs = store.get_storer('{}/lc'.format(path)).attrs
+        attrs.koinum = self.koinum
         attrs.texp = self.texp
         attrs.planets = self.planets
         store.close()
@@ -413,6 +414,7 @@ class LightCurve(object):
         except:
             store.close()
             raise
+        koinum = attrs.koinum
         texp = attrs.texp
         planets = attrs.planets
         store.close()
@@ -548,7 +550,7 @@ class BinaryLightCurve(LightCurve):
     @classmethod
     def load_hdf(cls, filename, path=''):
         """
-        A class method to load a saved LightCurve from an HDF5 file.
+        A class method to load a saved BinaryLightCurve from an HDF5 file.
 
         File must have been created by a call to :func:`LightCurve.save_hdf`.
 
@@ -559,7 +561,7 @@ class BinaryLightCurve(LightCurve):
             Path within HDF file.
 
         :return:
-            :class:`LightCurve` object.
+            :class:`BinaryLightCurve` object.
         """
         store = pd.HDFStore(filename)
         
@@ -581,6 +583,7 @@ class BinaryLightCurve(LightCurve):
         except:
             store.close()
             raise
+        koinum = attrs.koinum
         texp = attrs.texp
         planets = attrs.planets
         store.close()

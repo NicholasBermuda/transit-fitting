@@ -538,6 +538,7 @@ class TransitModel(object):
         attrs = store.get_storer('{}/samples'.format(path)).attrs
         attrs.width = self.width
         attrs.continuum_method = self.continuum_method
+        if hasattr(self,'which'): attrs.which = self.which
         attrs.lc_type = type(self.lc)
         
         store.close()
@@ -592,12 +593,12 @@ class BinaryTransitModel(TransitModel):
         which defaults to A for all 
 
     """
-    def __init__(self, lc, which=None,width = 2):
+    def __init__(self, lc, which=None,width = 2,**kwargs):
         
         if which == None:
             self.which = ['A'] * lc.n_planets
 
-        super(BinaryTransitModel,self).__init__(lc,width = width)
+        super(BinaryTransitModel,self).__init__(lc,width = width,**kwargs)
 
     def evaluate(self, par):
         """
@@ -797,3 +798,40 @@ class BinaryTransitModel(TransitModel):
             else: params = ['dilutionA','rhostarA','q1A','q2A','dilutionB','rhostarB','q1B','q2B']
         
         super(BinaryTransitModel, self).triangle(params,planet_only=planet_only,passedfrombinary=True,**kwargs)
+
+
+    @classmethod
+    def load_hdf(cls, filename, path=''):
+        """
+        A class method to load a saved BinaryTransitModel from an HDF5 file.
+
+        File must have been created by a call to :func:`StarModel.save_hdf`.
+
+        :param filename:
+            H5 file to load.
+
+        :param path: (optional)
+            Path within HDF file.
+
+        :return:
+            :class:`BinaryTransitModel` object.
+        """
+        store = pd.HDFStore(filename)
+        try:
+            samples = store['{}/samples'.format(path)]
+            attrs = store.get_storer('{}/samples'.format(path)).attrs        
+        except:
+            store.close()
+            raise
+        which = attrs.which
+        width = attrs.width
+        continuum_method = attrs.continuum_method
+        lc_type = attrs.lc_type
+        store.close()
+
+        lc = lc_type.load_hdf(filename, path=path)
+
+        mod = cls(lc, which=which,width=width, continuum_method=continuum_method)
+        mod._samples = samples
+        
+        return mod
