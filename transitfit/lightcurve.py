@@ -38,8 +38,7 @@ class Planet(object):
 
         self.duration = duration
 
-        self.name = name
-
+        self.name = namep
     @property
     def period(self):
         return self._period[0]
@@ -498,24 +497,36 @@ class BinaryLightCurve(LightCurve):
 
         return self.dilutionB_pdf  
 
-    @property #still to update!
+    @property
     def default_params(self):
         """Quick and dirty guesses for params
 
         """
-        params = [1, 4, 0.5, 0.5, 0]
+        params = [1, 4, 0.5, 0.5, 0, 4, 0.5, 0.5, 0]
 
-        if self.rhostar is not None:
-            if len(self.rhostar)==2:
-                params[1] = self.rhostar[0]
+        if self.rhostarA is not None:
+            if len(self.rhostarA)==2:
+                params[1] = self.rhostarA[0]
             else:
-                params[1] = np.mean(self.rhostar)
+                params[1] = np.mean(self.rhostarA)
 
-        if self.dilution is not None:
-            if len(self.dilution)==2:
-                params[4] = self.dilution[0]
+        if self.rhostarB is not None:
+            if len(self.rhostarB)==2:
+                params[5] = self.rhostarB[0]
             else:
-                params[4] = np.mean(self.dilution)
+                params[5] = np.mean(self.rhostarB)
+
+        if self.dilutionA is not None:
+            if len(self.dilutionA)==2:
+                params[4] = self.dilutionA[0]
+            else:
+                params[4] = np.mean(self.dilutionA)
+
+        if self.dilutionB is not None:
+            if len(self.dilutionB)==2:
+                params[8] = self.dilutionB[0]
+            else:
+                params[8] = np.mean(self.dilutionB)
 
         for i,p in enumerate(self.planets):
             minflux = np.median(self.flux[self.close(i, width=0.2, only=True)])
