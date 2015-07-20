@@ -290,12 +290,14 @@ class TransitModel(object):
 
         # Apply stellar density prior if relevant.
         if self.lc.rhostar is not None:
-            tot += np.log(self.lc.rhostar_pdf(rhostar))
+            if self.lc.rhostar_pdf(rhostar) == 0.0: return -np.inf
+            else: tot += np.log(self.lc.rhostar_pdf(rhostar))
         else: 
             tot += np.log(1./rhostar)
             
         if self.lc.dilution is not None:
-            tot += np.log(self.lc.dilution_pdf(dilution))
+            if self.lc.dilution_pdf(dilution) == 0.0: return -np.inf
+            else: tot += np.log(self.lc.dilution_pdf(dilution))
 
         for i in xrange(self.lc.n_planets):
             period, epoch, b, rprs, e, w = p[5+i*6:11+i*6]
@@ -706,18 +708,22 @@ class BinaryTransitModel(TransitModel):
 
         # Apply stellar density prior if relevant.
         if self.lc.rhostarA is not None:
-            tot += np.log(self.lc.rhostarA_pdf(rhostarA))
-
+            if self.lc.rhostarA(rhostarA) == 0.0: return -np.inf
+            else: tot += np.log(self.lc.rhostarA_pdf(rhostarA))
+        
         if self.lc.rhostarB is not None:
-            tot += np.log(self.lc.rhostarB_pdf(rhostarB))
-            
+            if self.lc.rhostarB(rhostarB) == 0.0: return -np.inf
+            else: tot += np.log(self.lc.rhostarB_pdf(rhostarB)) 
+       
         # Apply dilution prior if relevant
         if self.lc.dilutionA is not None:
-            tot += np.log(self.lc.dilutionA_pdf(dilutionA))
-
+            if self.lc.dilutionA_pdf(dilutionA) == 0.0: return -np.inf
+            else: tot += np.log(self.lc.dilutionA_pdf(dilutionA))
+       
         if self.lc.dilutionB is not None:
-            tot += np.log(self.lc.dilutionB_pdf(dilutionB))
-
+            if self.lc.dilutionB_pdf(dilutionB) == 0.0: return -np.inf
+            else: tot += np.log(self.lc.dilutionB_pdf(dilutionB))
+        
         for i in xrange(self.lc.n_planets):
             period, epoch, b, rprs, e, w = p[9+i*6:11+i*6]
 
