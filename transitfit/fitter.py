@@ -330,7 +330,7 @@ class TransitModel(object):
             tot += -0.5*(epoch - prior_ep)/prior_ep_err**2
 
             # log-flat prior on rprs
-            tot += np.log(1 / rprs)
+            #tot += np.log(1 / rprs)
 
 
             # Beta prior on eccentricity
@@ -592,13 +592,19 @@ class BinaryTransitModel(TransitModel):
 
     :param which:
         e.g., for three-planet system: ['A', 'A', 'B']
-        which defaults to A for all 
+        which defaults to A for all
+        if ``len(which) < n_planets`` then defaults missing values to A
 
     """
     def __init__(self, lc, which=None,width = 2,**kwargs):
         
         if which == None:
             self.which = ['A'] * lc.n_planets
+        elif len(which) < lc.n_planets:
+            while len(which) < lc.n_planets:
+                which.append('A')
+            self.which = which
+        else: self.which = which
 
         super(BinaryTransitModel,self).__init__(lc,width = width,**kwargs)
 
@@ -661,12 +667,12 @@ class BinaryTransitModel(TransitModel):
         cube[0] = 0.02*cube[0] + 0.99#flux_zp in [0.99,1.01)
 
         #stellar parameters
-        cube[1] = 199.999*cube[1] + 1e-4 #rhostarA in [1e-4, 200) --> should be log-flat in .lnprior()
+        cube[1] = 199.999*cube[1] + 1e-4 #rhostarA in [1e-4, 200)
         # cube[2] = unchanged # q1A in [0,1)
         # cube[3] = unchanged # q2A in [0,1)
         # cube[4] = unchanged # dilutionA in [0,1)
 
-        cube[5] = 199.999*cube[5] + 1e-4 #rhostarB in [1e-4,200) --> should be log-flat in .lnprior()
+        cube[5] = 199.999*cube[5] + 1e-4 #rhostarB in [1e-4,200)
         #cube[6] = unchanged # q1B in [0,1)
         #cube[7] = unchanged # q2B in [0,1)
         #cube[8] = unchanged #dilutionB in [0,1)
@@ -708,11 +714,11 @@ class BinaryTransitModel(TransitModel):
 
         # Apply stellar density prior if relevant.
         if self.lc.rhostarA is not None:
-            if self.lc.rhostarA(rhostarA) == 0.0: return -np.inf
+            if self.lc.rhostarA_pdf(rhostarA) == 0.0: return -np.inf
             else: tot += np.log(self.lc.rhostarA_pdf(rhostarA))
         
         if self.lc.rhostarB is not None:
-            if self.lc.rhostarB(rhostarB) == 0.0: return -np.inf
+            if self.lc.rhostarB_pdf(rhostarB) == 0.0: return -np.inf
             else: tot += np.log(self.lc.rhostarB_pdf(rhostarB)) 
        
         # Apply dilution prior if relevant
@@ -727,6 +733,7 @@ class BinaryTransitModel(TransitModel):
         for i in xrange(self.lc.n_planets):
             period, epoch, b, rprs, e, w = p[9+i*6:11+i*6]
 
+            #more invalid parameter ranges
             if not 0 < e < 1:
                 return -np.inf
             if period <= 0:
@@ -755,7 +762,7 @@ class BinaryTransitModel(TransitModel):
             tot += -0.5*(epoch - prior_ep)/prior_ep_err**2
 
             # log-flat prior on rprs
-            tot += np.log(1 / rprs)
+            #tot += np.log(1 / rprs)
 
 
             # Beta prior on eccentricity
