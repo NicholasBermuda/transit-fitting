@@ -207,8 +207,8 @@ class TransitModel(object):
         and [period, epoch, b, rprs, ecc, omega] for each planet
         """
         #flat priors for fluxzp,rhostar,q1,q2,dilution
-        cube[0] = 0.02*cube[0] + 0.99#flux_zp in [0.5,1.5)
-        cube[1] = 199.999*cube[1] + 1e-4 #rhostar in [1e-4, 200) --> should probably be log-flat in .lnprior()
+        cube[0] = 0.04*cube[0] + 0.98 #flux_zp in [0.98,1.02)
+        cube[1] = 199.999*cube[1] + 1e-4 #rhostar in [1e-4, 200)
         # cube[2] = unchanged # q1 in [0,1)
         # cube[3] = unchanged # q2 in [0,1)
         # cube[4] = unchanged # dilution in [0,1)
@@ -221,7 +221,7 @@ class TransitModel(object):
             #setting the flat priors between mu +- 10sigma for period, epoch
             cube[counter] = 20*prior_p_sig*cube[counter] + prior_p_mu - 10*prior_p_sig #period
             cube[counter+1] = 20*prior_ep_sig*cube[counter+1] + prior_ep_mu - 10*prior_ep_sig #epoch
-            cube[counter+2] = 2*cube[counter+2]#b in [0,2)
+            cube[counter+2] = 2*cube[counter+2] #b in [0,2)
             cube[counter+3] = 0.499*cube[counter+3] + 0.001 #rprs in [0.001,0.5)
             # cube[counter+4] = unchanged #ecc in [0,1)
             cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
@@ -322,7 +322,7 @@ class TransitModel(object):
                 return -np.inf
                 
             
-            # Priors on period, epoch based on discovery measurements
+            # Gaussian priors on period, epoch based on discovery measurements
             prior_p, prior_p_err = self.lc.planets[i]._period
             tot += -0.5*(period - prior_p)**2/prior_p_err**2
 
@@ -664,7 +664,7 @@ class BinaryTransitModel(TransitModel):
         and [period, epoch, b, rprs, ecc, omega] for each planet
         """
         #flat priors
-        cube[0] = 0.02*cube[0] + 0.99#flux_zp in [0.99,1.01)
+        cube[0] = 0.04*cube[0] + 0.98 #flux_zp in [0.98,1.02)
 
         #stellar parameters
         cube[1] = 199.999*cube[1] + 1e-4 #rhostarA in [1e-4, 200)
@@ -686,7 +686,7 @@ class BinaryTransitModel(TransitModel):
             cube[counter] = 20*prior_p_sig*cube[counter] + prior_p_mu - 10*prior_p_sig #period
             cube[counter+1] = 20*prior_ep_sig*cube[counter+1] + prior_ep_mu - 10*prior_ep_sig #epoch
             cube[counter+2] = 2*cube[counter+2]#b in [0,2)
-            cube[counter+3] = 0.5*cube[counter+3]#rprs in [0,0.5)
+            cube[counter+3] = 0.499*cube[counter+3] + 0.001#rprs in [0.001,0.5)
             # cube[counter+4] = unchanged #ecc in [0,1)
             cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
             counter += 6
@@ -754,15 +754,15 @@ class BinaryTransitModel(TransitModel):
                 return -np.inf
                 
             
-            # Priors on period, epoch based on discovery measurements
+            # Gaussian priors on period, epoch based on discovery measurements
             prior_p, prior_p_err = self.lc.planets[i]._period
-            tot += -0.5*(period - prior_p)/prior_p_err**2
+            tot += -0.5*(period - prior_p)**2/prior_p_err**2
 
             prior_ep, prior_ep_err = self.lc.planets[i]._epoch
-            tot += -0.5*(epoch - prior_ep)/prior_ep_err**2
+            tot += -0.5*(epoch - prior_ep)**2/prior_ep_err**2
 
             # log-flat prior on rprs
-            #tot += np.log(1 / rprs)
+            tot += np.log(1 / rprs)
 
 
             # Beta prior on eccentricity
