@@ -222,7 +222,7 @@ class TransitModel(object):
             cube[counter] = 20*prior_p_sig*cube[counter] + prior_p_mu - 10*prior_p_sig #period
             cube[counter+1] = 20*prior_ep_sig*cube[counter+1] + prior_ep_mu - 10*prior_ep_sig #epoch
             cube[counter+2] = 2*cube[counter+2]#b in [0,2)
-            cube[counter+3] = 0.5*cube[counter+3]#rprs in [0,0.5)
+            cube[counter+3] = 0.499*cube[counter+3] + 0.001 #rprs in [0.001,0.5)
             # cube[counter+4] = unchanged #ecc in [0,1)
             cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
             counter += 6
@@ -324,13 +324,13 @@ class TransitModel(object):
             
             # Priors on period, epoch based on discovery measurements
             prior_p, prior_p_err = self.lc.planets[i]._period
-            tot += -0.5*(period - prior_p)/prior_p_err**2
+            tot += -0.5*(period - prior_p)**2/prior_p_err**2
 
             prior_ep, prior_ep_err = self.lc.planets[i]._epoch
-            tot += -0.5*(epoch - prior_ep)/prior_ep_err**2
+            tot += -0.5*(epoch - prior_ep)**2/prior_ep_err**2
 
             # log-flat prior on rprs
-            #tot += np.log(1 / rprs)
+            tot += np.log(1 / rprs)
 
 
             # Beta prior on eccentricity
