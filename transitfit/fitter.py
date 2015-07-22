@@ -464,7 +464,7 @@ class TransitModel(object):
             params = []
             if not(planet_only):
                 params.append('dilution')
-                params.apend('rho')
+                params.append('rho')
                 params.append('q1')
                 params.append('q2')
             for par in ['period', 'epoch', 'b', 'rprs',
