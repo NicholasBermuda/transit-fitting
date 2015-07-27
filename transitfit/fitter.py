@@ -17,9 +17,9 @@ DAY = 86400 #in seconds
 
 
 import emcee
-import pymultinest #imports the pymultinest package
+import pymultinest
 
-try: #importing the triangle package to make triangle plots
+try:
     import triangle
 except ImportError:
     triangle=None
@@ -27,11 +27,6 @@ except ImportError:
 from transit.transit import InvalidParameterError
     
 from .utils import lc_eval
-# from .utils: Returns flux at given times, given parameters
-# takes Parameter vector, of length 4 + 6*Nplanets
-# p[0:4] = [rhostar, q1, q2, dilution]
-# p[4+i*6:10+i*6] = [period, epoch, b, rprs, e, w] for i-th planet
-# also takes times to evaluate t, and exposure time texp
 
 class TransitModel(object):
     """Model of one or more transiting planets around a particular star
@@ -92,7 +87,7 @@ class TransitModel(object):
             
 
         """
-        p = [par[i] for i in range(5+6*self.lc.n_planets)]
+        p = [par[i] for i in range(5+6*self.lc.n_planets)] #don't slice the cube!
 
 
         #starts by creating a continuum model at times in the light curve
@@ -231,8 +226,6 @@ class TransitModel(object):
         """
         Log likelihood function for MultiNest
         """
-        #in stellarmodel.py code, we return not the loglike, but the logpost?
-        #i think i should be able to just pass the lc built from the cube to lnlike?
         return self.lnpost(cube)
 
     @property
@@ -257,8 +250,13 @@ class TransitModel(object):
     def cost(self, p): #useful for scipy.optimize.minimize
         return -self.lnpost(p)
     
-    def lnpost(self, p):
+    def lnpost(self, par):
         #ln post = ln (prior*likelihood) = ln prior + ln likelihood
+        
+        #don't slice the cube! switch for Single and Binary models 
+        if hasattr(self,'which'): p = [par[i] for i in range(9+6*self.lc.n_planets)]
+        else: p = [par[i] for i in range(5+6*self.lc.n_planets)]
+        
         prior = self.lnprior(p)
         if np.isfinite(prior): #if the prior is finite, then set likelihood
             like = self.lnlike(p)
@@ -292,8 +290,6 @@ class TransitModel(object):
         if self.lc.rhostar is not None:
             if self.lc.rhostar_pdf(rhostar) == 0.0: return -np.inf
             else: tot += np.log(self.lc.rhostar_pdf(rhostar))
-        else: 
-            tot += np.log(1./rhostar)
             
         if self.lc.dilution is not None:
             if self.lc.dilution_pdf(dilution) == 0.0: return -np.inf
@@ -540,6 +536,8 @@ class TransitModel(object):
         attrs = store.get_storer('{}/samples'.format(path)).attrs
         attrs.width = self.width
         attrs.continuum_method = self.continuum_method
+        attrs._mnest_basename = self._mnest_basename
+        attrs.koinum = self.koinum
         if hasattr(self,'which'): attrs.which = self.which
         attrs.lc_type = type(self.lc)
         
@@ -572,6 +570,8 @@ class TransitModel(object):
             raise
         width = attrs.width
         continuum_method = attrs.continuum_method
+        koinum = attrs.koinum
+        _mnest_basename = attrs._mnest_basename
         lc_type = attrs.lc_type
         store.close()
 
@@ -840,6 +840,8 @@ class BinaryTransitModel(TransitModel):
         width = attrs.width
         continuum_method = attrs.continuum_method
         lc_type = attrs.lc_type
+        koinum = attrs.koinum
+        _mnest_basename = attrs._mnest_basename
         store.close()
 
         lc = lc_type.load_hdf(filename, path=path)
