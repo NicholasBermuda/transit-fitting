@@ -176,7 +176,7 @@ class TransitModel(object):
 
         self._mnest_basename = str(self.lc.koinum) + '/' + basename
 
-        if overwrite and os.path.exists(str(self.lc.koinum)): shutil.rmtree(str(self.lc.koinum))
+        #if overwrite and os.path.exists(str(self.lc.koinum)): shutil.rmtree(str(self.lc.koinum))
 
         #creates the directory for the output
         folder = os.path.abspath(os.path.dirname(self._mnest_basename))
