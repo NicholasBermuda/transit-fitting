@@ -125,6 +125,7 @@ class LightCurve(object):
             self.median_detrend()
         else:
             self._detrended_flux = np.array(flux)
+            self._detrended_flux_err = np.array(flux_err)
 
     @property
     def t(self):
@@ -147,20 +148,25 @@ class LightCurve(object):
         return self._flux[~self.mask]
         
     @property
-    def flux_err(self):
+    def raw_flux_err(self):
         return self._flux_err[~self.mask]
         
     @property
     def flux(self):
         return self._detrended_flux[~self.mask]
 
+    @property
+    def flux_err(self):
+        return self._detrended_flux_err[~self.mask]
+
     def median_detrend(self, window=75): 
-        #rolling median to normalise the flux read from archive
+        #rolling median to normalise the flux and flux_err read from archive
         f = self._flux.copy()
         f[self.any_intransit] = np.nan
         f_median = pd.rolling_median(f, 75, center=True,
                                      min_periods=1)
         self._detrended_flux = self._flux / f_median
+        self._detrended_flux_err = self._flux_err / f_median
 
     @property
     def n_planets(self):

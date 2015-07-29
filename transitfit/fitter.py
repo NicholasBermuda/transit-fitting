@@ -325,7 +325,7 @@ class TransitModel(object):
             tot += -0.5*(period - prior_p)**2/prior_p_err**2 + p_normalisation
 
             prior_ep, prior_ep_err = self.lc.planets[i]._epoch
-            e_normalisation = np.log(1./(prior_e_err*np.sqrt(2*np.pi))) #Gaussian normalisation
+            e_normalisation = np.log(1./(prior_ep_err*np.sqrt(2*np.pi))) #Gaussian normalisation
             tot += -0.5*(epoch - prior_ep)**2/prior_ep_err**2 + e_normalisation
 
             # normalised log-flat prior on rprs
