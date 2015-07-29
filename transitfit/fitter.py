@@ -290,11 +290,11 @@ class TransitModel(object):
         # Apply stellar density prior if relevant.
         if self.lc.rhostar is not None:
             if self.lc.rhostar_pdf(rhostar) == 0.0: return -np.inf
-            else: tot += np.log(self.lc.rhostar_pdf(rhostar)) #negative
+            else: tot += np.log(self.lc.rhostar_pdf(rhostar))
             
         if self.lc.dilution is not None:
             if self.lc.dilution_pdf(dilution) == 0.0: return -np.inf
-            else: tot += np.log(self.lc.dilution_pdf(dilution)) #[-4,4]
+            else: tot += np.log(self.lc.dilution_pdf(dilution)) 
 
         for i in xrange(self.lc.n_planets):
             period, epoch, b, rprs, e, w = p[5+i*6:11+i*6]
@@ -329,14 +329,14 @@ class TransitModel(object):
             tot += -0.5*(epoch - prior_ep)**2/prior_ep_err**2 + e_normalisation
 
             # normalised log-flat prior on rprs
-            rprs_normalisation = np.log(0.3/0.005)
-            tot += np.log(1 / rprs * rprs_normalisation)
+            rprs_normalisation = np.log(0.3/0.005) #normalisation based on limits of prior range
+            tot += np.log(1 / rprs * 1./rprs_normalisation)
 
 
             # Beta prior on eccentricity
             a,b = (0.4497, 1.7938)
             eccprior = 1/beta(a,b) * e**(a-1) * (1 - e)**(b-1)
-            tot += np.log(eccprior) #positive, sometimes big
+            tot += np.log(eccprior)
             
         return tot
 
