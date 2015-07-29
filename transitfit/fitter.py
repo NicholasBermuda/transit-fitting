@@ -269,9 +269,10 @@ class TransitModel(object):
             flux_model = self.evaluate(p)
         except InvalidParameterError:
             return -np.inf
-        #returns the ln chi square statistic for the flux model (based on our input
+        #returns the normalised ln chi square statistic for the flux model (based on our input
         #parameters) vs the data that we got from kepler
-        return (-0.5 * (flux_model - self.lc.flux)**2 / self.lc.flux_err**2).sum()
+        like_normalisation = np.log(1./(self.lc.flux_err*np.sqrt(2*np.pi))) #Gaussian normalisation
+        return (like_normalisation + -0.5 * (flux_model - self.lc.flux)**2 / self.lc.flux_err**2).sum()
         
     def lnprior(self, p):
         flux_zp, rhostar, q1, q2, dilution = p[:5]
@@ -289,11 +290,11 @@ class TransitModel(object):
         # Apply stellar density prior if relevant.
         if self.lc.rhostar is not None:
             if self.lc.rhostar_pdf(rhostar) == 0.0: return -np.inf
-            else: tot += np.log(self.lc.rhostar_pdf(rhostar))
+            else: tot += np.log(self.lc.rhostar_pdf(rhostar)) #negative
             
         if self.lc.dilution is not None:
             if self.lc.dilution_pdf(dilution) == 0.0: return -np.inf
-            else: tot += np.log(self.lc.dilution_pdf(dilution))
+            else: tot += np.log(self.lc.dilution_pdf(dilution)) #[-4,4]
 
         for i in xrange(self.lc.n_planets):
             period, epoch, b, rprs, e, w = p[5+i*6:11+i*6]
@@ -320,19 +321,22 @@ class TransitModel(object):
             
             # Gaussian priors on period, epoch based on discovery measurements
             prior_p, prior_p_err = self.lc.planets[i]._period
-            tot += -0.5*(period - prior_p)**2/prior_p_err**2
+            p_normalisation = np.log(1./(prior_p_err*np.sqrt(2*np.pi))) #Gaussian normalisation
+            tot += -0.5*(period - prior_p)**2/prior_p_err**2 + p_normalisation
 
             prior_ep, prior_ep_err = self.lc.planets[i]._epoch
-            tot += -0.5*(epoch - prior_ep)**2/prior_ep_err**2
+            e_normalisation = np.log(1./(prior_e_err*np.sqrt(2*np.pi))) #Gaussian normalisation
+            tot += -0.5*(epoch - prior_ep)**2/prior_ep_err**2 + e_normalisation
 
-            # log-flat prior on rprs
-            tot += np.log(1 / rprs)
+            # normalised log-flat prior on rprs
+            rprs_normalisation = np.log(0.3/0.005)
+            tot += np.log(1 / rprs * rprs_normalisation)
 
 
             # Beta prior on eccentricity
             a,b = (0.4497, 1.7938)
             eccprior = 1/beta(a,b) * e**(a-1) * (1 - e)**(b-1)
-            tot += np.log(eccprior)
+            tot += np.log(eccprior) #positive, sometimes big
             
         return tot
 
@@ -756,13 +760,16 @@ class BinaryTransitModel(TransitModel):
             
             # Gaussian priors on period, epoch based on discovery measurements
             prior_p, prior_p_err = self.lc.planets[i]._period
-            tot += -0.5*(period - prior_p)**2/prior_p_err**2
+            p_normalisation = np.log(1./(prior_p_err*np.sqrt(2*np.pi))) #Gaussian normalisation
+            tot += -0.5*(period - prior_p)**2/prior_p_err**2 + p_normalisation
 
             prior_ep, prior_ep_err = self.lc.planets[i]._epoch
-            tot += -0.5*(epoch - prior_ep)**2/prior_ep_err**2
+            e_normalisation = np.log(1./(prior_e_err*np.sqrt(2*np.pi))) #Gaussian normalisation
+            tot += -0.5*(epoch - prior_ep)**2/prior_ep_err**2 + e_normalisation
 
             # log-flat prior on rprs
-            tot += np.log(1 / rprs)
+            rprs_normalisation = np.log(0.3/0.005) #normalisation based on limits of prior range
+            tot += np.log(1/rprs * normalisation)
 
 
             # Beta prior on eccentricity
