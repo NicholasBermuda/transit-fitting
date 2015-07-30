@@ -30,7 +30,9 @@ def all_LCdata(koi, mask_bad=False):
     for lc in koi.get_light_curves():
         if re.search('_llc\.fits', lc.filename):
             newdf = lc_dataframe(lc)
-            newdf['PDCSAP_FLUX'] /= newdf['PDCSAP_FLUX'].mean()
+            normalfactor = newdf['PDCSAP_FLUX'].mean()
+            newdf['PDCSAP_FLUX'] /= normalfactor
+            newdf['PDCSAP_FLUX_ERR'] /= normalfactor
             df = pd.concat([df, newdf])
             
     if mask_bad:
