@@ -62,8 +62,7 @@ def density_samples(s, which='A'):
 def t_folded(t, per, ep):
     return (t + per/2 - ep) % per - (per/2)
 
-def lc_eval(p, t, texp=None): #returns a numpy ndarray light curve
-                              #using the simple layout of transit package
+def lc_eval(p, t, texp=None): 
     """
     Returns flux at given times, given parameters.
 

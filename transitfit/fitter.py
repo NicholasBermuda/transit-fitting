@@ -174,14 +174,14 @@ class TransitModel(object):
 
     def fit_multinest(self,n_live_points = 1000,basename='chains/1-', verbose=True,overwrite=True,**kwargs):
 
-        self._mnest_basename = str(self.lc.koinum) + '/' + basename
+        self._mnest_basename = basename
 
         #if overwrite and os.path.exists(str(self.lc.koinum)): shutil.rmtree(str(self.lc.koinum))
 
         #creates the directory for the output
-        folder = os.path.abspath(os.path.dirname(self._mnest_basename))
-        if not os.path.exists(self._mnest_basename):
-            os.makedirs(self._mnest_basename)
+        #folder = os.path.abspath(os.path.dirname(self._mnest_basename))
+        #if not os.path.exists(self._mnest_basename):
+        #    os.makedirs(self._mnest_basename)
 
 
         if hasattr(self,'which'): self.n_params = 9 + 6*self.lc.n_planets
@@ -690,7 +690,7 @@ class BinaryTransitModel(TransitModel):
             cube[counter] = 20*prior_p_sig*cube[counter] + prior_p_mu - 10*prior_p_sig #period
             cube[counter+1] = 20*prior_ep_sig*cube[counter+1] + prior_ep_mu - 10*prior_ep_sig #epoch
             cube[counter+2] = 2*cube[counter+2]#b in [0,2)
-            cube[counter+3] = 0.499*cube[counter+3] + 0.001#rprs in [0.001,0.5)
+            cube[counter+3] = 0.295*cube[counter+3] + 0.005#rprs in [0.005,0.3)
             # cube[counter+4] = unchanged #ecc in [0,1)
             cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
             counter += 6
@@ -718,24 +718,25 @@ class BinaryTransitModel(TransitModel):
 
         # Apply stellar density prior if relevant.
         if self.lc.rhostarA is not None:
-            if self.lc.rhostarA_pdf(rhostarA) == 0.0: return -np.inf
+            if self.lc.rhostar_pdf_A(rhostarA) == 0.0: return -np.inf
             else: tot += np.log(self.lc.rhostar_pdf_A(rhostarA))
         
         if self.lc.rhostarB is not None:
-            if self.lc.rhostarB_pdf(rhostarB) == 0.0: return -np.inf
+            if self.lc.rhostar_pdf_B(rhostarB) == 0.0: return -np.inf
             else: tot += np.log(self.lc.rhostar_pdf_B(rhostarB)) 
        
         # Apply dilution prior if relevant
         if self.lc.dilutionA is not None:
-            if self.lc.dilutionA_pdf(dilutionA) == 0.0: return -np.inf
+            if self.lc.dilution_pdf_A(dilutionA) == 0.0: return -np.inf
             else: tot += np.log(self.lc.dilution_pdf_A(dilutionA))
        
         if self.lc.dilutionB is not None:
-            if self.lc.dilutionB_pdf(dilutionB) == 0.0: return -np.inf
+            if self.lc.dilution_pdf_B(dilutionB) == 0.0: return -np.inf
             else: tot += np.log(self.lc.dilution_pdf_B(dilutionB))
         
         for i in xrange(self.lc.n_planets):
-            period, epoch, b, rprs, e, w = p[9+i*6:11+i*6]
+            which = self.which[i]
+            period, epoch, b, rprs, e, w = p[9+i*6:15+i*6]
 
             #more invalid parameter ranges
             if not 0 < e < 1:
@@ -751,7 +752,10 @@ class BinaryTransitModel(TransitModel):
             if e > 0:
                 factor = (1 + e * np.sin(w)) / (1 - e * e)
 
-            aR = (rhostar * G * (period*DAY)**2 / (3*np.pi))**(1./3)
+            if which == 'A': 
+                aR = (rhostarA * G * (period*DAY)**2 / (3*np.pi))**(1./3)
+            else:
+                aR = (rhostarB * G * (period*DAY)**2 / (3*np.pi))**(1./3)
                 
             arg = b * factor/aR
             if arg > 1.0:
@@ -764,12 +768,12 @@ class BinaryTransitModel(TransitModel):
             tot += -0.5*(period - prior_p)**2/prior_p_err**2 + p_normalisation
 
             prior_ep, prior_ep_err = self.lc.planets[i]._epoch
-            e_normalisation = np.log(1./(prior_e_err*np.sqrt(2*np.pi))) #Gaussian normalisation
+            e_normalisation = np.log(1./(prior_ep_err*np.sqrt(2*np.pi))) #Gaussian normalisation
             tot += -0.5*(epoch - prior_ep)**2/prior_ep_err**2 + e_normalisation
 
             # log-flat prior on rprs
             rprs_normalisation = np.log(0.3/0.005) #normalisation based on limits of prior range
-            tot += np.log(1/rprs * normalisation)
+            tot += np.log(1/rprs * 1./rprs_normalisation)
 
 
             # Beta prior on eccentricity
