@@ -18,6 +18,7 @@ DAY = 86400 #in seconds
 #comment
 import emcee
 import pymultinest
+#import pypolychord
 
 try:
     import triangle
@@ -27,6 +28,7 @@ except ImportError:
 from transit.transit import InvalidParameterError
     
 from .utils import lc_eval
+from .utils import batman_lc
 
 class TransitModel(object):
     """Model of one or more transiting planets around a particular star
@@ -106,25 +108,42 @@ class TransitModel(object):
         f[close] = lc_eval(p[1:], self.lc.t[close], texp=self.lc.texp)
         return f
 
-    # THIS WILL BECOME A WRAPPER FOR THE THREE TYPES OF FIT
-    # def fit(self, **kwargs):
+    
+    #Here we'll implement the batman version of evaluate. 
+    #We must be careful as we are going to do this for multiple planets in the system but batman doesn't have multiple bodies
+    #maybe we can implement a for loop over the number of planets and then build each light curve for the planets
+    #followed by adding the result of each iteration
+    #does this take into account overlapping transits? probably, so long as planets don't overlap each other
+    
+    # def batman_evaluate(self,par):
+    #     """Evaluates light curve model at lc times using batman lc
+
+    #     :param p:
+    #         Parameter vector, of length 5 + 6*Nplanets
+    #         p[0] = flux zero-point 
+    #         p[1:5] = [rhostar,q1,q2,dilution]
+    #         p[5+i*6:11+i*6] = [period, epoch, b, rprs, e, w] for i-th planet
+
+    #     :param t:
+    #         Times at which to evaluate the model.
     #     """
-    #     Wrapper for either :func:`fit_leastsq' or :func:`fit_emcee` or 
-    #     :func:`fit_multinest`
+    #     p = [par[i] for i in range(5+6*self.lc.n_planets)] #don't slice the cube!
 
-    #     Default is to use MultiNest; set `use_emcee` or `fit_leastsq` 
-    #     to `True` or call them directly if you want to use MCMC or least squares
-    #     """
-    #     if self.use_leastsq:
+    #     #starts by creating a continuum model at times in the light curve
+    #     f = self.continuum(p[0], self.lc.t)
 
-    #         #remove kwargs for emcee and multinest
+    #     # Identify points near any transit
+    #     close = np.zeros_like(self.lc.t).astype(bool) #intialising a boolean mask
+    #                                                   #over all the times
+    #     for i in range(self.lc.n_planets): #for all of the planets in the input
+    #                                        #n_planets is from the KeplerLightCurve object
+    #         #creates the close array by changing value of indices that are close to the
+    #         #lowest value of the transit (width is passed into TransitModel)
+    #         close += self.lc.close(i, width=self.width)
 
-    #     elif self.use_emcee:
-    #         #remove kwargs for leastsq and multinest
-
-    #     else:
-    #         self.fit_multinest(**kwargs)
-
+    #     #evaluates the light curve data at points where we're in transit
+    #     f[close] = batman_lc(p[1:], self.lc.t[close], texp=self.lc.texp)
+    #     return f
 
     def fit_leastsq(self, p0, method='Powell', **kwargs):
         #using the scipy.optimize.minimize function
@@ -191,6 +210,15 @@ class TransitModel(object):
                             n_live_points=n_live_points,outputfiles_basename=self._mnest_basename,verbose=verbose,**kwargs)
 
         self._make_samples()
+
+    # def fit_polychord(self,n_live_points = 1000,n_chords=1,basename='polychains/1-',**kwargs):
+    #     self._pchord_basename = basename
+    #     self.n_chords = n_chords
+
+    #     if hasattr(self,'which'): self.n_dim = 9 + 6*self.lc.n_planets
+    #     else: self.n_dim = 5 + 6*self.lc.n_planets
+
+    #     pypolychord.run(self.mnest_loglike,self.mnest_prior,self.n_dim,n_live_points=n_live_points,n_chords=self.n_chords,output_basename =self._pchord_basename,**kwargs)
 
     def mnest_prior(self, cube, ndims, nparams):
         """

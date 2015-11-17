@@ -3,6 +3,7 @@ from __future__ import print_function, division
 import numpy as np
 from transit import Central, System, Body #we're using these classes from transit
 from astropy import constants as const
+import batman
 
 R_sun = const.R_sun.cgs.value
 M_sun = const.M_sun.cgs.value
@@ -100,4 +101,46 @@ def lc_eval(p, t, texp=None):
 
 
     return s.light_curve(t, texp=texp) #returns a numpy array of flux
+
+
+def batman_lc(p,t,texp):
+    """Uses batman to calculate the flux at given time with parameters p"""
+    #seems to be normalised over a Rstar = 1? is this something that we will have to correct for?
+
+    if texp is None: #if we aren't given an exposure time, calculate it
+        texp = np.median(t[1:] - t[:-1])
+
+    n_planets = (len(p) - 4)//6#number of planets based on input param array
+    
+    rhostar, q1, q2, dilution = p[:4] #assigning star's params from input
+
+    totaldelta = np.zeros_like(t) #difference from zero at all points
+
+    for i in range(n_planets):
+        params = batman.TransitParams()
+        params.per = p[i*6+4]
+        params.t0 = p[i*6+5]
+        params.rp = p[i*6+7]
+        params.a = 0
+        params.inc = 0
+        params.ecc = p[i*6+8]
+        params.w = 0
+        params.limb_dark = 'quadratic'
+        params.u = [q1,q2]
+
+        times = t
+
+        model = batman.TransitModel(params,t,nthreads=1)
+        flux = model.light_curve(params)
+
+        totaldelta += (1-flux)*(1-dilution) #is this the right place to implement this???
+
+    return (1-totaldelta)
+
+
+
+
+
+
+
         
