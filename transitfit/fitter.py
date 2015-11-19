@@ -111,8 +111,6 @@ class TransitModel(object):
     
     #Here we'll implement the batman version of evaluate. 
     #We must be careful as we are going to do this for multiple planets in the system but batman doesn't have multiple bodies
-    #maybe we can implement a for loop over the number of planets and then build each light curve for the planets
-    #followed by adding the result of each iteration
     #does this take into account overlapping transits? probably, so long as planets don't overlap each other
     
     # def batman_evaluate(self,par):
