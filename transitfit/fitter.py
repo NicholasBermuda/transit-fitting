@@ -24,8 +24,6 @@ try:
     import triangle
 except ImportError:
     triangle=None
-
-from transit.transit import InvalidParameterError
     
 from .utils import lc_eval
 from .utils import batman_lc
@@ -42,7 +40,7 @@ class TransitModel(object):
         ``tc + width*duration``, where ``tc`` is the transit center time.
 
     """
-    def __init__(self, lc, width=2, continuum_method='constant',use_leastsq=False,use_emcee=False):
+    def __init__(self, lc, width=2, continuum_method='constant',light_curve='batman',fit_method='multinest'):
 
         self.lc = lc #KeplerLightCurve object
         self.width = width
@@ -53,9 +51,8 @@ class TransitModel(object):
         self._bestfit = None
         self._samples = None
 
-        #the following is useful for the fit wrapper
-        self.use_leastsq = use_leastsq #if you want to use least squares for fitting
-        self.use_emcee = use_emcee #if you want to use emcee for fitting
+        self._light_curve = light_curve
+        self._fit_method = fit_method
 
 
     def continuum(self, p, t):
@@ -113,35 +110,35 @@ class TransitModel(object):
     #We must be careful as we are going to do this for multiple planets in the system but batman doesn't have multiple bodies
     #does this take into account overlapping transits? probably, so long as planets don't overlap each other
     
-    # def batman_evaluate(self,par):
-    #     """Evaluates light curve model at lc times using batman lc
+    def batman_evaluate(self,par):
+        """Evaluates light curve model at lc times using batman module
 
-    #     :param p:
-    #         Parameter vector, of length 5 + 6*Nplanets
-    #         p[0] = flux zero-point 
-    #         p[1:5] = [rhostar,q1,q2,dilution]
-    #         p[5+i*6:11+i*6] = [period, epoch, b, rprs, e, w] for i-th planet
+        :param p:
+            Parameter vector, of length 5 + 6*Nplanets
+            p[0] = flux zero-point 
+            p[1:5] = [rhostar,q1,q2,dilution]
+            p[5+i*6:11+i*6] = [period, epoch, b, rprs, e, w] for i-th planet
 
-    #     :param t:
-    #         Times at which to evaluate the model.
-    #     """
-    #     p = [par[i] for i in range(5+6*self.lc.n_planets)] #don't slice the cube!
+        :param t:
+            Times at which to evaluate the model.
+        """
+        p = [par[i] for i in range(5+6*self.lc.n_planets)] #don't slice the cube!
 
-    #     #starts by creating a continuum model at times in the light curve
-    #     f = self.continuum(p[0], self.lc.t)
+        #starts by creating a continuum model at times in the light curve
+        f = self.continuum(p[0], self.lc.t)
 
-    #     # Identify points near any transit
-    #     close = np.zeros_like(self.lc.t).astype(bool) #intialising a boolean mask
-    #                                                   #over all the times
-    #     for i in range(self.lc.n_planets): #for all of the planets in the input
-    #                                        #n_planets is from the KeplerLightCurve object
-    #         #creates the close array by changing value of indices that are close to the
-    #         #lowest value of the transit (width is passed into TransitModel)
-    #         close += self.lc.close(i, width=self.width)
+        # Identify points near any transit
+        close = np.zeros_like(self.lc.t).astype(bool) #intialising a boolean mask
+                                                      #over all the times
+        for i in range(self.lc.n_planets): #for all of the planets in the input
+                                           #n_planets is from the KeplerLightCurve object
+            #creates the close array by changing value of indices that are close to the
+            #lowest value of the transit (width is passed into TransitModel)
+            close += self.lc.close(i, width=self.width)
 
-    #     #evaluates the light curve data at points where we're in transit
-    #     f[close] = batman_lc(p[1:], self.lc.t[close], texp=self.lc.texp)
-    #     return f
+        #evaluates the light curve data at points where we're in transit
+        f[close] = batman_lc(p[1:], self.lc.t[close], texp=self.lc.texp)
+        return f
 
     def fit_leastsq(self, p0, method='Powell', **kwargs):
         #using the scipy.optimize.minimize function
@@ -293,7 +290,7 @@ class TransitModel(object):
     def lnlike(self, p):
         try:
             flux_model = self.evaluate(p)
-        except InvalidParameterError:
+        except ValueError:
             return -np.inf
         #returns the normalised ln chi square statistic for the flux model (based on our input
         #parameters) vs the data that we got from kepler
@@ -364,7 +361,7 @@ class TransitModel(object):
             eccprior = 1/beta(a,b) * e**(a-1) * (1 - e)**(b-1)
             tot += np.log(eccprior)
             
-        return tot
+        return tot[0]
 
     def plot_planets(self, params, width=2, color='r', fig=None,
                      marker='o', ls='none', ms=0.5, **kwargs):
@@ -677,6 +674,50 @@ class BinaryTransitModel(TransitModel):
 
         fA[close_A] = (lc_eval(pA[1:],self.lc.t[close_A],texp=self.lc.texp))
         fB[close_B] = (lc_eval(pB[1:],self.lc.t[close_B],texp=self.lc.texp))
+        depthA = 1-fA
+        depthB = 1-fB
+        totaldepth = depthA + depthB
+        f = 1 - totaldepth
+        
+        return f
+
+    def batman_evaluate(self,par):
+        """Evaluates light curve model at lc times using batman module
+
+        :param p:
+            Parameter vector, of length 1 + 4*2 + 6*Nplanets
+            p[0] = flux zero-point
+            p[1:5] = [rhostarA, q1A, q2A, dilutionA]
+            p[5:9] = [rhostarB, q1B, q2B, dilutionB]
+            p[9+i*6 : 15+i*6] = [per, ep, b, rprs, e, w] for i-th planet 
+
+        :param t:
+            Times at which to evaluate the model."""
+
+        p = [par[i] for i in range(9+6*self.lc.n_planets)] #don't slice the cube!
+
+        pA,pB = p[0:5],[p[0],p[5],p[6],p[7],p[8]]
+
+        #starts by creating a continuum model at times in the light curve
+        f = self.continuum(p[0], self.lc.t)
+        fA = np.copy(f)
+        fB = np.copy(f)
+
+        # Identify points near any transit
+        close_A = np.zeros_like(self.lc.t).astype(bool)
+        close_B = np.zeros_like(self.lc.t).astype(bool)
+
+        for i in xrange(self.lc.n_planets):
+            if self.which[i] == 'A':
+                pA = np.append(pA,p[9+i*6 : 15+i*6])
+                close_A += self.lc.close(i,width=self.width)
+            else:
+                pB = np.append(pB,p[9+i*6 : 15+i*6])
+                close_B += self.lc.close(i,width=self.width)
+
+        #evaluates the light curve data at points where we're in transit
+        fA[close_A] = batman_lc(pA[1:],self.lc.t[close_A],texp=self.lc.texp)
+        fB[close_B] = batman_lc(pB[1:],self.lc.t[close_B],texp=self.lc.texp)
         depthA = 1-fA
         depthB = 1-fB
         totaldepth = depthA + depthB

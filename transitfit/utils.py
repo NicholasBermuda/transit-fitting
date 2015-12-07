@@ -90,6 +90,9 @@ def lc_eval(p, t, texp=None):
     
     rhostar, q1, q2, dilution = p[:4] #assigning star's params from input
 
+    # u1 = 2*math.sqrt(q1)*q2 #convert q1,q2 to u1,u2 from Kipping (2013)
+    # u2 = math.sqrt(q1)*(1.-2*q2)
+
     central = Central(q1=q1, q2=q2) #setting the central body of the system
     central.density = rhostar
     s = System(central, dilution=dilution)
@@ -98,7 +101,7 @@ def lc_eval(p, t, texp=None):
     for i in range(n_planets): #iteratively adds the planets passed in from params
         period, epoch, b, rprs, e, w = p[4+i*6:10+i*6]
         r = central.radius * rprs
-        body = Body(flux=0, r=r, mass=0, period=period, t0=epoch,
+        body = Body(radius=r, mass=0, period=period, t0=epoch,
                    e=e, omega=w, b=b)
         s.add_body(body)
 
@@ -106,7 +109,7 @@ def lc_eval(p, t, texp=None):
     return s.light_curve(t, texp=texp) #returns a numpy array of flux
 
 
-def batman_lc(p,t,texp=None):
+def batman_lc(p,t,texp=None,nthreads=1):
     """Uses batman to calculate the flux at given time with parameters p"""
 
     if texp is None: #if we aren't given an exposure time, calculate it
@@ -150,9 +153,9 @@ def batman_lc(p,t,texp=None):
         params.limb_dark = 'quadratic'
         params.u = [u1,u2]
 
-        times = t
+        #times = t
         #building the model and light curve
-        model = batman.TransitModel(params,t,nthreads=1)
+        model = batman.TransitModel(params,t,nthreads=nthreads,supersample_factor=5.,exp_time=texp)
         flux = model.light_curve(params)
 
         #implementing the dilution and adding to the total light curve data
