@@ -13,9 +13,9 @@ from scipy.stats import gaussian_kde
 
 from transit import Central, System, Body
 
-from .utils import t_folded, lc_eval
+from .utils import t_folded, transit_lc
 #t_folded returns the folded time using t, period, epoch
-#lc_eval returns numpy ndarray of flux values of a transit model
+#transit_lc returns numpy ndarray of flux values of a transit model
 
 
 
@@ -126,6 +126,8 @@ class LightCurve(object):
         else:
             self._detrended_flux = np.array(flux)
             self._detrended_flux_err = np.array(flux_err)
+            nonan = [i for i in self._detrended_flux_err if ((np.isnan(i)) == False)]
+            self._detrended_flux_err_max = np.max(nonan)
 
     @property
     def t(self):
@@ -161,12 +163,14 @@ class LightCurve(object):
 
     def median_detrend(self, window=75): 
         #rolling median to normalise the flux and flux_err read from archive
-        f = self._flux.copy()
+        f = self.rawflux.copy()
         f[self.any_intransit] = np.nan
         f_median = pd.rolling_median(f, 75, center=True,
                                      min_periods=1)
         self._detrended_flux = self._flux / f_median
         self._detrended_flux_err = self._flux_err / f_median
+        nonan = [i for i in self._detrended_flux_err if ((np.isnan(i)) == False)]
+        self._detrended_flux_err_max = np.max(nonan)
 
     @property
     def n_planets(self):
@@ -304,7 +308,6 @@ class LightCurve(object):
         fig.subplots_adjust(hspace=0)
             
         return fig
-        
         
     def plot_planet(self, i=0, width=2, ax=None,
                     marker='o', ls='none', color='k',

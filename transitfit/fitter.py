@@ -25,7 +25,7 @@ try:
 except ImportError:
     triangle=None
     
-from .utils import lc_eval
+from .utils import transit_lc
 from .utils import batman_lc
 
 class TransitModel(object):
@@ -72,7 +72,7 @@ class TransitModel(object):
         #and returns the flux zero-point at all times in the lc
         return p[0]*np.ones_like(t)
         
-    def evaluate(self, par):
+    def transit_evaluate(self, par):
         """Evaluates light curve model at light curve times
 
         :param p:
@@ -102,13 +102,9 @@ class TransitModel(object):
             close += self.lc.close(i, width=self.width)
 
         #evaluates the light curve data at points where we're in transit
-        f[close] = lc_eval(p[1:], self.lc.t[close], texp=self.lc.texp)
+        f[close] = transit_lc(p[1:], self.lc.t[close], texp=self.lc.texp)
         return f
 
-    
-    #Here we'll implement the batman version of evaluate. 
-    #We must be careful as we are going to do this for multiple planets in the system but batman doesn't have multiple bodies
-    #does this take into account overlapping transits? probably, so long as planets don't overlap each other
     
     def batman_evaluate(self,par):
         """Evaluates light curve model at lc times using batman module
@@ -137,10 +133,19 @@ class TransitModel(object):
             close += self.lc.close(i, width=self.width)
 
         #evaluates the light curve data at points where we're in transit
-        f[close] = batman_lc(p[1:], self.lc.t[close], texp=self.lc.texp)
+        f[close] = batman_lc(p[1:], self.lc.t[close],self.lc._detrended_flux_err_max,texp=self.lc.texp)
         return f
 
-    def fit_leastsq(self, p0, method='Powell', **kwargs):
+    def fit(self,**kwargs):
+        if self._fit_method == 'least squares':
+            return fit_leastsq(**kwargs)
+        elif self._fit_method == 'emcee':
+            return fit_emcee(**kwargs)
+        # elif self._fit_method == 'polychord':
+        #     self.fit_polychord(**kwargs)
+        else: self.fit_multinest(**kwargs)
+
+    def fit_leastsq(self, p0=None, method='Powell', **kwargs):
         #using the scipy.optimize.minimize function
         #cost is negative post because we're using minimize
         fit = minimize(self.cost, p0, method=method, **kwargs)
@@ -186,7 +191,7 @@ class TransitModel(object):
         self.sampler = sampler
         return sampler
 
-    def fit_multinest(self,n_live_points = 1000,basename='chains/1-', verbose=True,overwrite=True,**kwargs):
+    def fit_multinest(self,n_live_points=1000,basename='chains/1-', verbose=True,overwrite=True,**kwargs):
 
         self._mnest_basename = basename
 
@@ -205,6 +210,7 @@ class TransitModel(object):
                             n_live_points=n_live_points,outputfiles_basename=self._mnest_basename,verbose=verbose,**kwargs)
 
         self._make_samples()
+
 
     # def fit_polychord(self,n_live_points = 1000,n_chords=1,basename='polychains/1-',**kwargs):
     #     self._pchord_basename = basename
@@ -289,7 +295,9 @@ class TransitModel(object):
                     
     def lnlike(self, p):
         try:
-            flux_model = self.evaluate(p)
+            if self._light_curve == 'batman':
+                flux_model = self.batman_evaluate(p)
+            else: flux_model = self.transit_evaluate(p)
         except ValueError:
             return -np.inf
         #returns the normalised ln chi square statistic for the flux model (based on our input
@@ -373,7 +381,9 @@ class TransitModel(object):
         maxdur = max([p.duration for p in self.lc.planets])
         widths = [width / (p.duration/maxdur) for p in self.lc.planets]
 
-        depth = (1 - self.evaluate(params))*1e6
+        if self._light_curve == 'batman':
+            depth = (1 - self.batman_evaluate(params))*1e6
+        else: depth = (1 - self.transit_evaluate(params))*1e6
         
         for i,ax in enumerate(fig.axes):
             tfold = self.lc.t_folded(i) * 24
@@ -635,7 +645,7 @@ class BinaryTransitModel(TransitModel):
 
         super(BinaryTransitModel,self).__init__(lc,width = width,**kwargs)
 
-    def evaluate(self, par):
+    def transit_evaluate(self, par):()
         """
         Evaluates light curve model at light curve times.
 
@@ -662,7 +672,7 @@ class BinaryTransitModel(TransitModel):
         close_B = np.zeros_like(self.lc.t).astype(bool)
 
         # Must use self.which to determine which star parameters
-        # get passed to lc_eval for each planet.
+        # get passed to transit_lc for each planet.
         # Build close_A and close_B properly, depending on self.which
         for i in xrange(self.lc.n_planets):
             if self.which[i] == 'A':
@@ -672,14 +682,10 @@ class BinaryTransitModel(TransitModel):
                 pB = np.append(pB,p[9+i*6 : 15+i*6])
                 close_B += self.lc.close(i,width=self.width)
 
-        fA[close_A] = (lc_eval(pA[1:],self.lc.t[close_A],texp=self.lc.texp))
-        fB[close_B] = (lc_eval(pB[1:],self.lc.t[close_B],texp=self.lc.texp))
-        depthA = 1-fA
-        depthB = 1-fB
-        totaldepth = depthA + depthB
-        f = 1 - totaldepth
+        fA[close_A] = (transit_lc(pA[1:],self.lc.t[close_A],texp=self.lc.texp))
+        fB[close_B] = (transit_lc(pB[1:],self.lc.t[close_B],texp=self.lc.texp))
         
-        return f
+        return 1-((1-fA)+(1-fB))
 
     def batman_evaluate(self,par):
         """Evaluates light curve model at lc times using batman module
@@ -716,14 +722,10 @@ class BinaryTransitModel(TransitModel):
                 close_B += self.lc.close(i,width=self.width)
 
         #evaluates the light curve data at points where we're in transit
-        fA[close_A] = batman_lc(pA[1:],self.lc.t[close_A],texp=self.lc.texp)
-        fB[close_B] = batman_lc(pB[1:],self.lc.t[close_B],texp=self.lc.texp)
-        depthA = 1-fA
-        depthB = 1-fB
-        totaldepth = depthA + depthB
-        f = 1 - totaldepth
+        fA[close_A] = batman_lc(pA[1:],self.lc.t[close_A],self.lc._detrended_flux_err_max,texp=self.lc.texp)
+        fB[close_B] = batman_lc(pB[1:],self.lc.t[close_B],self.lc._detrended_flux_err_max,texp=self.lc.texp)
         
-        return f
+        return 1-((1-fA)+(1-fB))
 
     def mnest_prior(self, cube, ndims, nparams):
         """
@@ -848,7 +850,7 @@ class BinaryTransitModel(TransitModel):
             eccprior = 1/beta(a,b) * e**(a-1) * (1 - e)**(b-1)
             tot += np.log(eccprior)
             
-        return tot
+        return tot[0]
 
     def _make_samples(self):
         post_samples = np.loadtxt(self._mnest_basename + 'post_equal_weights.dat')

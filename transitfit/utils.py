@@ -66,7 +66,7 @@ def density_samples(s, which='A'):
 def t_folded(t, per, ep):
     return (t + per/2 - ep) % per - (per/2)
 
-def lc_eval(p, t, texp=None): 
+def transit_lc(p, t, texp=None): 
     """
     Returns flux at given times, given parameters.
 
@@ -109,7 +109,7 @@ def lc_eval(p, t, texp=None):
     return s.light_curve(t, texp=texp) #returns a numpy array of flux
 
 
-def batman_lc(p,t,texp=None,nthreads=1):
+def batman_lc(p,t,max_err=None,texp=None,nthreads=1):
     """Uses batman to calculate the flux at given time with parameters p"""
 
     if texp is None: #if we aren't given an exposure time, calculate it
@@ -121,7 +121,6 @@ def batman_lc(p,t,texp=None,nthreads=1):
 
     u1 = 2*math.sqrt(q1)*q2 #convert q1,q2 to u1,u2 from Kipping (2013)
     u2 = math.sqrt(q1)*(1.-2*q2)
-    print(u1,u2)
 
     totaldelta = np.zeros_like(t) #difference from zero at all points
 
@@ -130,22 +129,20 @@ def batman_lc(p,t,texp=None,nthreads=1):
         #calculate the corresponding a/R_star from rhostar and period
         periodcgs = p[i*6+4]*daytosecond #convert the period to cgs
         ars = ((rhostar*big_G*periodcgs**2)/(3*math.pi))**(1./3.) #a over R_star, from Winn (2014) eqn (30)
-        print(ars)
 
         #calculate inc  from b, a/R_star, e, w
         b = p[6+i*6]
         e = p[8+i*6]
         w = p[9+i*6] * 180./math.pi
-        print(b,e,w)
 
         #from Winn (2014), eqn 7
         incl = math.acos((b/ars)*((1+e*math.sin(w))/(1-e**2))) *180./math.pi
-        print(incl)
 
         params = batman.TransitParams()
         params.per = p[4+i*6]
         params.t0 = p[5+i*6]
-        params.rp = p[7+i*6]
+        rp = p[7+i*6]
+        params.rp = rp
         params.a = ars
         params.inc = incl
         params.ecc = e
@@ -153,9 +150,19 @@ def batman_lc(p,t,texp=None,nthreads=1):
         params.limb_dark = 'quadratic'
         params.u = [u1,u2]
 
+        # #delta = rp**2
+        # T_0 = p[i*6+4]/(ars*math.pi)
+        # ingressduration = (T_0*rp)/math.sqrt(1-b**2)
+        # #sigma = max_err
+        # #I = exp_time
+        # N = ((texp*rp**2)/(8.*ingressduration*max_err))**(0.5)
+        # print(max_err,T_0,ingressduration,N)
+
+
+
         #times = t
         #building the model and light curve
-        model = batman.TransitModel(params,t,nthreads=nthreads,supersample_factor=5.,exp_time=texp)
+        model = batman.TransitModel(params,t,nthreads=nthreads,supersample_factor=15.,exp_time=texp)
         flux = model.light_curve(params)
 
         #implementing the dilution and adding to the total light curve data
