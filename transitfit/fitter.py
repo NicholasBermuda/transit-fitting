@@ -645,9 +645,8 @@ class BinaryTransitModel(TransitModel):
 
         super(BinaryTransitModel,self).__init__(lc,width = width,**kwargs)
 
-    def transit_evaluate(self, par):()
-        """
-        Evaluates light curve model at light curve times.
+    def transit_evaluate(self, par):
+        """Evaluates light curve model at light curve times.
 
         Difference with TransitModel is that there are now two stars.
 

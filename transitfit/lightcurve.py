@@ -163,7 +163,7 @@ class LightCurve(object):
 
     def median_detrend(self, window=75): 
         #rolling median to normalise the flux and flux_err read from archive
-        f = self.rawflux.copy()
+        f = self._flux.copy()
         f[self.any_intransit] = np.nan
         f_median = pd.rolling_median(f, 75, center=True,
                                      min_periods=1)
@@ -208,11 +208,11 @@ class LightCurve(object):
     def intransit(self, i=0, width=0.55):
         """Boolean mask True everywhere within 0.6*duration of planet i
         """
-        return self.planets[i].in_transit(self.time, width=width)
+        return self.planets[i].in_transit(self._time, width=width)
 
     @property
     def any_intransit(self):
-        intrans = np.zeros_like(self.time).astype(bool)
+        intrans = np.zeros_like(self._time).astype(bool)
         for i in range(self.n_planets):
             intrans += self.intransit(i)
         return intrans
