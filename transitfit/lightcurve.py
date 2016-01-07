@@ -372,16 +372,8 @@ class LightCurve(object):
                 store.close()
 
         self.dataframe.to_hdf(filename, '{}/lc'.format(path))
-        if hasattr(self,'which'):
-            if self.rhostarA is not None:
-                self.rhostarA.to_hdf(filename,'{}/rhostarA'.format(path))
-                self.rhostarB.to_hdf(filename,'{}/rhostarB'.format(path))
-                self.dilutionA.to_hdf(filename,'{}/dilutionA'.format(path))
-                self.dilutionB.to_hdf(filename,'{}/dilutionB'.format(path))
-        else:
-            if self.rhostar is not None:
-                self.rhostar.to_hdf(filename, '{}/rhostar'.format(path))
-                self.dilution.to_hdf(filename, '{}/dilution'.format(path))
+        self.rhostardataframe.to_hdf(filename,'{}/rhostar'.format(path))
+        self.dilutiondataframe.to_hdf(filename,'{}/dilution'.format(path))
 
         store = pd.HDFStore(filename)
         attrs = store.get_storer('{}/lc'.format(path)).attrs
@@ -407,24 +399,19 @@ class LightCurve(object):
             :class:`LightCurve` object.
         """
         store = pd.HDFStore(filename)
-        print('store')
         
         try:
             df = store['{}/lc'.format(path)]
-            try:
-                rhostar = store['{}/rhostar'.format(path)]
-            except:
-                rhostar = None
-            try:
-                dilution = store['{}/dilution'.format(path)]
-            except:
-                dilution = None
+            rhostardf = store['{}/rhostar'.format(path)]
+            dilutiondf = store['{}/dilution'.format(path)]
             attrs = store.get_storer('{}/lc'.format(path)).attrs        
         except:
             store.close()
             raise
         koinum = attrs.koinum
         texp = attrs.texp
+        rhostar = rhostardf['rhostar'].values
+        dilution = dilutiondf['dilution'].values
         planets = attrs.planets
         store.close()
 
@@ -444,6 +431,27 @@ class LightCurve(object):
         df['detrended_flux'] = self._detrended_flux
 
         return df
+
+    @property
+    def rhostardataframe(self):
+        """
+        Return rhostar data as a pandas DataFrame
+        """
+        df = pd.DataFrame()
+        df['rhostar'] = self.rhostar
+
+        return df
+
+    @property
+    def dilutiondataframe(self):
+        """
+        Return rhostar data as a pandas DataFrame
+        """
+        df = pd.DataFrame()
+        df['dilution'] = self.dilution
+
+        return df
+
             
     @classmethod
     def from_df(cls, df, **kwargs):
@@ -576,22 +584,15 @@ class BinaryLightCurve(LightCurve):
         
         try:
             df = store['{}/lc'.format(path)]
-            try:
-                rhostarA = store['{}/rhostarA'.format(path)]
-            except:
-                rhostarA = None            
-            try:
-                rhostarB = store['{}/rhostarB'.format(path)]
-            except:
-                rhostarB = None
-            try:
-                dilution = store['{}/dilutionA'.format(path)]
-            except:
-                dilution = None
+            rhostardf = store['{}/rhostar'.format(path)]
+            dilutiondf = store['{}/dilution'.format(path)]
             attrs = store.get_storer('{}/lc'.format(path)).attrs        
         except:
             store.close()
             raise
+        dilution = dilutiondf['dilution'].values
+        rhostarA = rhostardf['rhostarA'].values
+        rhostarB = rhostardf['rhostarB'].values
         koinum = attrs.koinum
         texp = attrs.texp
         planets = attrs.planets
@@ -599,3 +600,39 @@ class BinaryLightCurve(LightCurve):
 
         return cls.from_df(df, texp=texp, planets=planets, 
                            rhostarA=rhostarA,rhostarB=rhostarB, dilution=dilution)
+
+
+    @property
+    def dataframe(self):
+        """
+        Return data as a pandas DataFrame
+        """
+        df = pd.DataFrame()
+        df['time'] = self._time
+        df['flux'] = self._flux
+        df['flux_err'] = self._flux_err
+        df['mask'] = self.mask
+        df['detrended_flux'] = self._detrended_flux
+
+        return df
+
+    @property
+    def rhostardataframe(self):
+        """
+        Return rhostar data as a pandas DataFrame
+        """
+        df = pd.DataFrame()
+        df['rhostarA'] = self.rhostarA
+        df['rhostarB'] = self.rhostarB
+
+        return df
+
+    @property
+    def dilutiondataframe(self):
+        """
+        Return rhostar data as a pandas DataFrame
+        """
+        df = pd.DataFrame()
+        df['dilution'] = self.dilutionA
+
+        return df    
