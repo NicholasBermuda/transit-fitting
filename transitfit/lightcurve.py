@@ -583,8 +583,8 @@ class BinaryLightCurve(LightCurve):
         store = pd.HDFStore(filename)
         
         try:
-            df = store['{}/lc'.format(path)]
             rhostardf = store['{}/rhostar'.format(path)]
+            df = store['{}/lc'.format(path)]
             dilutiondf = store['{}/dilution'.format(path)]
             attrs = store.get_storer('{}/lc'.format(path)).attrs        
         except:
@@ -602,19 +602,6 @@ class BinaryLightCurve(LightCurve):
                            rhostarA=rhostarA,rhostarB=rhostarB, dilution=dilution)
 
 
-    @property
-    def dataframe(self):
-        """
-        Return data as a pandas DataFrame
-        """
-        df = pd.DataFrame()
-        df['time'] = self._time
-        df['flux'] = self._flux
-        df['flux_err'] = self._flux_err
-        df['mask'] = self.mask
-        df['detrended_flux'] = self._detrended_flux
-
-        return df
 
     @property
     def rhostardataframe(self):
