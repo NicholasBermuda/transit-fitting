@@ -11,12 +11,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 from scipy.stats import gaussian_kde
 
-from transit import Central, System, Body
-
-from .utils import t_folded, transit_lc
-#t_folded returns the folded time using t, period, epoch
-#transit_lc returns numpy ndarray of flux values of a transit model
-
+from .utils import t_folded
 
 
 class Planet(object):
@@ -39,6 +34,7 @@ class Planet(object):
         self.duration = duration
 
         self.name = name
+    
     @property
     def period(self):
         return self._period[0]
@@ -62,10 +58,14 @@ class Planet(object):
         return np.absolute(self.t_folded(t)) < width*self.duration
 
     def in_transit(self, t, width=0.55):
+        """
+        Returns True if the planet is in transit
+        """
         return self.close(t, width=width)
 
     def ith_transit(self, t, i, width=2):
-        """Returns True around ith transit (as measured from epoch)
+        """
+        Returns True around ith transit (as measured from epoch)
         """
         per, ep = (self.period, self.epoch)
         close = np.absolute(((t - ep + per/2) / per) 
@@ -82,6 +82,9 @@ class LightCurve(object):
     :param texp:
         Exposure time.  If not provided, will be assumed to be median
         of delta-t.
+
+    :param planet:
+        Array of Planet objects in the system.
         
     :param rhostar:
         Stellar density.  Can be passed as (mu, sigma) or
@@ -180,13 +183,14 @@ class LightCurve(object):
         self.planets.append(planet)
 
     def t_folded(self, i=0):
-        """Times folded on the period and epoch of planet i
+        """
+        Times folded on the period and epoch of planet i
         """
         return self.planets[i].t_folded(self.time)
 
     def close(self, i=0, width=2, only=False):
-        """Boolean array with True everywhere within width*duration of planet i
-
+        """
+        Boolean array with True everywhere within width*duration of planet i
         if only, then any cadences with other planets also get masked out
         """
         close = self.planets[i].close(self.time, width=width)
@@ -206,7 +210,8 @@ class LightCurve(object):
         return close
 
     def intransit(self, i=0, width=0.55):
-        """Boolean mask True everywhere within 0.6*duration of planet i
+        """
+        Boolean mask True everywhere within 0.6*duration of planet i
         """
         return self.planets[i].in_transit(self._time, width=width)
 
@@ -445,7 +450,7 @@ class LightCurve(object):
     @property
     def dilutiondataframe(self):
         """
-        Return rhostar data as a pandas DataFrame
+        Return dilution data as a pandas DataFrame
         """
         df = pd.DataFrame()
         df['dilution'] = self.dilution
@@ -468,7 +473,7 @@ class BinaryLightCurve(LightCurve):
     LightCurve of a binary star system
 
     Like LightCurve, but takes rhostar_A and 
-    rhostar_B.  Dilution refers to primary.
+    rhostar_B.  Dilution refers to primary/dilution_A.
 
     """
     def __init__(self, time, flux, flux_err=0.0001,
@@ -600,8 +605,6 @@ class BinaryLightCurve(LightCurve):
 
         return cls.from_df(df, texp=texp, planets=planets, 
                            rhostarA=rhostarA,rhostarB=rhostarB, dilution=dilution)
-
-
 
     @property
     def rhostardataframe(self):

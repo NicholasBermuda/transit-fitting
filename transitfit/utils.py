@@ -1,7 +1,7 @@
 from __future__ import print_function, division
 
 import numpy as np
-from transit import Central, System, Body #we're using these classes from transit
+from transit import Central, System, Body
 from astropy import constants as const
 import batman
 import math
@@ -60,15 +60,12 @@ def density_samples(s, which='A'):
         raise ValueError('Invalid choice: {}'.format(which))
     return 0.75*m*M_sun / (np.pi * (r*R_sun)**3)
 
-
-
-
 def t_folded(t, per, ep):
     return (t + per/2 - ep) % per - (per/2)
 
 def transit_lc(p, t, texp=None): 
     """
-    Returns flux at given times, given parameters.
+    Returns flux using :transit: at given times, given parameters:
 
     :param p:
         Parameter vector, of length 4 + 6*Nplanets
@@ -110,7 +107,27 @@ def transit_lc(p, t, texp=None):
 
 
 def batman_lc(p,t,max_err=None,texp=None,nthreads=1):
-    """Uses batman to calculate the flux at given time with parameters p"""
+    """
+    Returns flux using :batman: at given times, given parameters:
+
+    :param p:
+        Parameter vector, of length 4 + 6*Nplanets
+        p[0:4] = [rhostar, q1, q2, dilution]
+        p[4+i*6:10+i*6] = [period, epoch, b, rprs, e, w] for i-th planet
+
+    :param t:
+        Times at which to evaluate model.
+
+    :param max_err:
+        (Unimplemented) Maximum error in flux used to calculate supersample factor.
+
+    :param texp:
+        Exposure time.  If not provided, assumed to be median t[1:]-t[:-1]
+
+    :param nthreads:
+        Number of threads used in batman light curve evaluation.
+
+    """
 
     if texp is None: #if we aren't given an exposure time, calculate it
         texp = np.median(t[1:] - t[:-1])
@@ -130,7 +147,7 @@ def batman_lc(p,t,max_err=None,texp=None,nthreads=1):
         periodcgs = p[i*6+4]*daytosecond #convert the period to cgs
         ars = ((rhostar*big_G*periodcgs**2)/(3*math.pi))**(1./3.) #a over R_star, from Winn (2014) eqn (30)
 
-        #calculate inc  from b, a/R_star, e, w
+        #calculate inc from b, a/R_star, e, w
         b = p[6+i*6]
         e = p[8+i*6]
         w = p[9+i*6] * 180./math.pi
@@ -138,6 +155,7 @@ def batman_lc(p,t,max_err=None,texp=None,nthreads=1):
         #from Winn (2014), eqn 7
         incl = math.acos((b/ars)*((1+e*math.sin(w))/(1-e**2))) *180./math.pi
 
+        #assigning parameters
         params = batman.TransitParams()
         params.per = p[4+i*6]
         params.t0 = p[5+i*6]
@@ -162,7 +180,7 @@ def batman_lc(p,t,max_err=None,texp=None,nthreads=1):
 
         #times = t
         #building the model and light curve
-        model = batman.TransitModel(params,t,nthreads=nthreads,supersample_factor=15.,exp_time=texp)
+        model = batman.TransitModel(params,t,supersample_factor=15.,exp_time=texp)
         flux = model.light_curve(params)
 
         #implementing the dilution and adding to the total light curve data

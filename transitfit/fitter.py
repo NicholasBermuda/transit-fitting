@@ -6,8 +6,10 @@ from scipy.optimize import minimize
 import os, os.path
 import math
 import shutil
-
+import emcee
+import pymultinest
 from scipy.special import beta
+from .utils import transit_lc, batman_lc
 
 from astropy import constants as const
 G = const.G.cgs.value
@@ -15,18 +17,12 @@ M_sun = const.M_sun.cgs.value
 R_sun = const.R_sun.cgs.value
 DAY = 86400 #in seconds
 
-#comment
-import emcee
-import pymultinest
-#import pypolychord
-
 try:
     import triangle
 except ImportError:
     triangle=None
     
-from .utils import transit_lc
-from .utils import batman_lc
+
 
 class TransitModel(object):
     """Model of one or more transiting planets around a particular star

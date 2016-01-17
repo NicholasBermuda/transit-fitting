@@ -4,7 +4,7 @@ import re
 import pandas as pd
 import numpy as np
 
-import kplr #using the kplr package to interact with the Kepler data
+import kplr 
 
 from .lightcurve import LightCurve, Planet, BinaryLightCurve
 
