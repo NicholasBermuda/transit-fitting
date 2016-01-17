@@ -36,7 +36,7 @@ class TransitModel(object):
         ``tc + width*duration``, where ``tc`` is the transit center time.
 
     """
-    def __init__(self, lc, width=2, continuum_method='constant',nthreads = 1,light_curve='batman',fit_method='multinest'):
+    def __init__(self, lc, width=2, continuum_method='constant',light_curve='batman',fit_method='multinest'):
 
         self.lc = lc #KeplerLightCurve object
         self.width = width
@@ -46,7 +46,6 @@ class TransitModel(object):
         self._bestfit = None
         self._samples = None
 
-        self.nthreads = nthreads
         self._light_curve = light_curve
         self._fit_method = fit_method
 
@@ -129,7 +128,7 @@ class TransitModel(object):
             close += self.lc.close(i, width=self.width)
 
         #evaluates the light curve data at points where we're in transit
-        f[close] = batman_lc(p[1:], self.lc.t[close],self.lc._detrended_flux_err_max,texp=self.lc.texp,nthreads = self.nthreads)
+        f[close] = batman_lc(p[1:], self.lc.t[close],self.lc._detrended_flux_err_max,texp=self.lc.texp)
         return f
 
     def fit(self,**kwargs):
@@ -717,8 +716,8 @@ class BinaryTransitModel(TransitModel):
                 close_B += self.lc.close(i,width=self.width)
 
         #evaluates the light curve data at points where we're in transit
-        fA[close_A] = batman_lc(pA[1:],self.lc.t[close_A],self.lc._detrended_flux_err_max,texp=self.lc.texp,nthreads = self.nthreads)
-        fB[close_B] = batman_lc(pB[1:],self.lc.t[close_B],self.lc._detrended_flux_err_max,texp=self.lc.texp,nthreads = self.nthreads)
+        fA[close_A] = batman_lc(pA[1:],self.lc.t[close_A],self.lc._detrended_flux_err_max,texp=self.lc.texp)
+        fB[close_B] = batman_lc(pB[1:],self.lc.t[close_B],self.lc._detrended_flux_err_max,texp=self.lc.texp)
         
         return 1-((1-fA)+(1-fB))
 

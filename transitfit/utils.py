@@ -106,7 +106,7 @@ def transit_lc(p, t, texp=None):
     return s.light_curve(t, texp=texp) #returns a numpy array of flux
 
 
-def batman_lc(p,t,max_err=None,texp=None,nthreads=1):
+def batman_lc(p,t,max_err=None,texp=None):
     """
     Returns flux using :batman: at given times, given parameters:
 
@@ -123,9 +123,6 @@ def batman_lc(p,t,max_err=None,texp=None,nthreads=1):
 
     :param texp:
         Exposure time.  If not provided, assumed to be median t[1:]-t[:-1]
-
-    :param nthreads:
-        Number of threads used in batman light curve evaluation.
 
     """
 
@@ -150,10 +147,11 @@ def batman_lc(p,t,max_err=None,texp=None,nthreads=1):
         #calculate inc from b, a/R_star, e, w
         b = p[6+i*6]
         e = p[8+i*6]
-        w = p[9+i*6] * 180./math.pi
+        w = p[9+i*6]
 
         #from Winn (2014), eqn 7
         incl = math.acos((b/ars)*((1+e*math.sin(w))/(1-e**2))) *180./math.pi
+        w = w * 180./math.pi
 
         #assigning parameters
         params = batman.TransitParams()
