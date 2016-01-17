@@ -180,7 +180,7 @@ def batman_lc(p,t,max_err=None,texp=None,nthreads=1):
 
         #times = t
         #building the model and light curve
-        model = batman.TransitModel(params,t,supersample_factor=15.,exp_time=texp)
+        model = batman.TransitModel(params,t,supersample_factor=5.,exp_time=texp)
         flux = model.light_curve(params)
 
         #implementing the dilution and adding to the total light curve data
