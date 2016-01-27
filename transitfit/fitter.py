@@ -5,16 +5,15 @@ import pandas as pd
 from scipy.optimize import minimize
 import os, os.path
 import math
-import shutil
 import emcee
 import pymultinest
 from scipy.special import beta
 from .utils import transit_lc, batman_lc
+import batman
 
-from astropy import constants as const
-G = const.G.cgs.value
-M_sun = const.M_sun.cgs.value
-R_sun = const.R_sun.cgs.value
+G = 6.67384e-08 #astropy.constants.G.cgs.value
+M_sun = 1.9891e+33 #astropy.constants.M_sun.cgs.value
+R_sun = 69550800000.0 #astropy.constants.R_sun.cgs.value
 DAY = 86400 #in seconds
 
 try:
@@ -49,6 +48,31 @@ class TransitModel(object):
         self._light_curve = light_curve
         self._fit_method = fit_method
 
+        #set up the initial batman model
+        if light_curve == 'batman':
+            p0 = self.lc.default_params
+            flux_zp, rhostar, q1, q2, dilution = p0[:5]
+            u1 = 2*math.sqrt(q1)*q2 #convert q1,q2 to u1,u2 from Kipping (2013)
+            u2 = math.sqrt(q1)*(1.-2*q2)
+            periodcgs = p0[5]*DAY #convert the period to cgs
+            ars = ((rhostar*G*periodcgs**2)/(3*math.pi))**(1./3.) #a over R_star, from Winn (2014) eqn (30)
+            b = p0[7]
+            e = p0[9]
+            w = p0[10]
+            incl = math.acos((b/ars)*((1+e*math.sin(w))/(1-e**2))) *180./math.pi
+            w = w * 180./math.pi
+            params = batman.TransitParams()
+            params.per = p0[5]
+            params.t0 = p0[6]
+            rp = p0[8]
+            params.rp = rp
+            params.a = ars
+            params.inc = incl
+            params.ecc = e
+            params.w = w
+            params.limb_dark = 'quadratic'
+            params.u = [u1,u2]
+            self._initialmodel = batman.TransitModel(params,t,supersample_factor=5.,exp_time=texp)
 
     def continuum(self, p, t):
         """ Out-of-transit 'continuum' model.
@@ -128,7 +152,7 @@ class TransitModel(object):
             close += self.lc.close(i, width=self.width)
 
         #evaluates the light curve data at points where we're in transit
-        f[close] = batman_lc(p[1:], self.lc.t[close],self.lc._detrended_flux_err_max,texp=self.lc.texp)
+        f[close] = batman_lc(p[1:], self.lc.t[close],self._initialmodel,self.lc._detrended_flux_err_max,texp=self.lc.texp)
         return f
 
     def fit(self,**kwargs):
@@ -189,8 +213,6 @@ class TransitModel(object):
     def fit_multinest(self,n_live_points=1000,basename='chains/1-', verbose=True,overwrite=True,**kwargs):
 
         self._mnest_basename = basename
-
-        #if overwrite and os.path.exists(str(self.lc.koinum)): shutil.rmtree(str(self.lc.koinum))
 
         #creates the directory for the output
         #folder = os.path.abspath(os.path.dirname(self._mnest_basename))
@@ -716,8 +738,8 @@ class BinaryTransitModel(TransitModel):
                 close_B += self.lc.close(i,width=self.width)
 
         #evaluates the light curve data at points where we're in transit
-        fA[close_A] = batman_lc(pA[1:],self.lc.t[close_A],self.lc._detrended_flux_err_max,texp=self.lc.texp)
-        fB[close_B] = batman_lc(pB[1:],self.lc.t[close_B],self.lc._detrended_flux_err_max,texp=self.lc.texp)
+        fA[close_A] = batman_lc(pA[1:],self.lc.t[close_A],self._initialmodel,self.lc._detrended_flux_err_max,texp=self.lc.texp)
+        fB[close_B] = batman_lc(pB[1:],self.lc.t[close_B],self._initialmodel,self.lc._detrended_flux_err_max,texp=self.lc.texp)
         
         return 1-((1-fA)+(1-fB))
 

@@ -2,13 +2,12 @@ from __future__ import print_function, division
 
 import numpy as np
 from transit import Central, System, Body
-from astropy import constants as const
 import batman
 import math
 
-R_sun = const.R_sun.cgs.value
-M_sun = const.M_sun.cgs.value
-big_G = const.G.cgs.value
+R_sun = 69550800000.0 #astropy.constants.R_sun.cgs.value
+M_sun = 1.9891e+33 #astropy.constants.M_sun.cgs.value
+big_G = 6.67384e-08 #astropy.constants.G.cgs.value
 daytosecond = 86400.
 
 def dilution_samples(s, which='A', band='Kepler'):
@@ -106,7 +105,7 @@ def transit_lc(p, t, texp=None):
     return s.light_curve(t, texp=texp) #returns a numpy array of flux
 
 
-def batman_lc(p,t,max_err=None,texp=None):
+def batman_lc(p,t,initial_model,max_err=None,texp=None):
     """
     Returns flux using :batman: at given times, given parameters:
 
@@ -128,6 +127,8 @@ def batman_lc(p,t,max_err=None,texp=None):
 
     if texp is None: #if we aren't given an exposure time, calculate it
         texp = np.median(t[1:] - t[:-1])
+
+    model = initial_model
 
     n_planets = (len(p) - 4)//6#number of planets based on input param array
     
@@ -178,7 +179,6 @@ def batman_lc(p,t,max_err=None,texp=None):
 
         #times = t
         #building the model and light curve
-        model = batman.TransitModel(params,t,supersample_factor=5.,exp_time=texp)
         flux = model.light_curve(params)
 
         #implementing the dilution and adding to the total light curve data
