@@ -869,7 +869,7 @@ class BinaryTransitModel(TransitModel):
             eccprior = 1/beta(a,b) * e**(a-1) * (1 - e)**(b-1)
             tot += np.log(eccprior)
             
-        return tot[0]
+        return tot
 
     def _make_samples(self):
         post_samples = np.loadtxt(self._mnest_basename + 'post_equal_weights.dat')
