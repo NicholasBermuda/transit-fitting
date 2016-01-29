@@ -49,30 +49,30 @@ class TransitModel(object):
         self._fit_method = fit_method
 
         #set up the initial batman model
-        if light_curve == 'batman':
-            p0 = self.lc.default_params
-            flux_zp, rhostar, q1, q2, dilution = p0[:5]
-            u1 = 2*math.sqrt(q1)*q2 #convert q1,q2 to u1,u2 from Kipping (2013)
-            u2 = math.sqrt(q1)*(1.-2*q2)
-            periodcgs = p0[5]*DAY #convert the period to cgs
-            ars = ((rhostar*G*periodcgs**2)/(3*math.pi))**(1./3.) #a over R_star, from Winn (2014) eqn (30)
-            b = p0[7]
-            e = p0[9]
-            w = p0[10]
-            incl = math.acos((b/ars)*((1+e*math.sin(w))/(1-e**2))) *180./math.pi
-            w = w * 180./math.pi
-            params = batman.TransitParams()
-            params.per = p0[5]
-            params.t0 = p0[6]
-            rp = p0[8]
-            params.rp = rp
-            params.a = ars
-            params.inc = incl
-            params.ecc = e
-            params.w = w
-            params.limb_dark = 'quadratic'
-            params.u = [u1,u2]
-            self._initialmodel = batman.TransitModel(params,t,supersample_factor=5.,exp_time=texp)
+        # if light_curve == 'batman':
+        #     p0 = self.lc.default_params
+        #     flux_zp, rhostar, q1, q2, dilution = p0[:5]
+        #     u1 = 2*math.sqrt(q1)*q2 #convert q1,q2 to u1,u2 from Kipping (2013)
+        #     u2 = math.sqrt(q1)*(1.-2*q2)
+        #     periodcgs = p0[5]*DAY #convert the period to cgs
+        #     ars = ((rhostar*G*periodcgs**2)/(3*math.pi))**(1./3.) #a over R_star, from Winn (2014) eqn (30)
+        #     b = p0[7]
+        #     e = p0[9]
+        #     w = p0[10]
+        #     incl = math.acos((b/ars)*((1+e*math.sin(w))/(1-e**2))) *180./math.pi
+        #     w = w * 180./math.pi
+        #     params = batman.TransitParams()
+        #     params.per = p0[5]
+        #     params.t0 = p0[6]
+        #     rp = p0[8]
+        #     params.rp = rp
+        #     params.a = ars
+        #     params.inc = incl
+        #     params.ecc = e
+        #     params.w = w
+        #     params.limb_dark = 'quadratic'
+        #     params.u = [u1,u2]
+        #     self._initialmodel = batman.TransitModel(params,self.lc.t,supersample_factor=5.,exp_time=self.lc.texp)
 
     def continuum(self, p, t):
         """ Out-of-transit 'continuum' model.
@@ -185,7 +185,10 @@ class TransitModel(object):
         p0 = np.ones((nw,ndim)) * np.array(p0)[None,:]
 
         p0[:, 0] += np.random.normal(size=nw)*0.0001 #flux zp
-        p0[:, 1] += np.random.normal(size=nw) #rhostar
+        if (len(self.lc.rhostar) == 2):
+            p0[:, 1] += np.random.normal(size=nw)*self.lc.rhostar[1] #rhostar
+        else:
+            p0[:,1] += np.random.normal(size=nw)*np.std(self.lc.rhostar)
         p0[:, 2] += np.random.normal(size=nw)*0.1 #q1
         p0[:, 3] += np.random.normal(size=nw)*0.1 #q2
         p0[:, 4] += np.random.normal(size=nw)*0.1 #dilution
@@ -196,7 +199,7 @@ class TransitModel(object):
             p0[:, 7 + 6*i] = np.random.random(size=nw)*0.8 # impact param
             p0[:, 8 + 6*i] *= (1 + np.random.normal(size=nw)*0.01) #rprs
             p0[:, 9 + 6*i] = np.random.random(size=nw)*0.1 # eccentricity
-            p0[:, 10 + 6*i] = np.random.random(size=nw)*2*np.pi
+            p0[:, 10 + 6*i] = np.random.random(size=nw)*2*np.pi # omega
 
         p0 = np.absolute(p0) # no negatives allowed 
                                                 
@@ -386,7 +389,7 @@ class TransitModel(object):
             eccprior = 1/beta(a,b) * e**(a-1) * (1 - e)**(b-1)
             tot += np.log(eccprior)
             
-        return tot[0]
+        return tot
 
     def plot_planets(self, params, width=2, color='r', fig=None,
                      marker='o', ls='none', ms=0.5, **kwargs):
