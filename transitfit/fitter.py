@@ -180,6 +180,13 @@ class TransitModel(object):
         ndim = len(p0)
 
         # TODO: improve walker initialization!
+        ###################
+        # using least squares fit to choose emcee walker intialisation
+
+        LSfit = fit_leastsq(p0)
+        p0 = LSfit.x
+        
+        ######################
 
         nw = nwalkers
         p0 = np.ones((nw,ndim)) * np.array(p0)[None,:]
@@ -232,14 +239,17 @@ class TransitModel(object):
         self._make_samples()
 
 
-    # def fit_polychord(self,n_live_points = 1000,n_chords=1,basename='polychains/1-',**kwargs):
-    #     self._pchord_basename = basename
-    #     self.n_chords = n_chords
+    def fit_polychord(self,n_live_points=1000,n_chords=None,basename='polychains/1-',**kwargs):
+        self._pchord_basename = basename
 
-    #     if hasattr(self,'which'): self.n_dim = 9 + 6*self.lc.n_planets
-    #     else: self.n_dim = 5 + 6*self.lc.n_planets
+        if hasattr(self,'which'): self.n_dim = 9 + 6*self.lc.n_planets
+        else: self.n_dim = 5 + 6*self.lc.n_planets
 
-    #     pypolychord.run(self.mnest_loglike,self.mnest_prior,self.n_dim,n_live_points=n_live_points,n_chords=self.n_chords,output_basename =self._pchord_basename,**kwargs)
+        if n_chords is not None:
+            self.n_chords = n_chords
+        else self.n_chords = 3*self.n_dim
+
+        pypolychord.run(self.mnest_loglike,self.mnest_prior,self.n_dim,n_live_points=n_live_points,n_chords=self.n_chords,output_basename =self._pchord_basename,**kwargs)
 
     def mnest_prior(self, cube, ndims, nparams):
         """
