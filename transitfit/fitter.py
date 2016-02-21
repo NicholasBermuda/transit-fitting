@@ -249,7 +249,7 @@ class TransitModel(object):
             self.n_chords = n_chords
         else self.n_chords = 3*self.n_dim
 
-        pypolychord.run(self.mnest_loglike,self.mnest_prior,self.n_dim,n_live_points=n_live_points,n_chords=self.n_chords,output_basename =self._pchord_basename,**kwargs)
+        pypolychord.run(self.mnest_loglike,self.pchord_prior,self.n_dim,n_live_points=n_live_points,n_chords=self.n_chords,output_basename =self._pchord_basename,**kwargs)
 
     def mnest_prior(self, cube, ndims, nparams):
         """
@@ -280,6 +280,37 @@ class TransitModel(object):
             # cube[counter+4] = unchanged #ecc in [0,1)
             cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
             counter += 6
+
+    def pchord_prior(self, cube, ndims, nparams):
+        """
+        Transforms the unit cube into parameter cube
+
+        Uses simple flat priors, more complicated transormations will occur in lnprior
+
+        Priors are [flux_zp, rhostar, q1, q2, dilution] 
+        and [period, epoch, b, rprs, ecc, omega] for each planet
+        """
+        #flat priors for fluxzp,rhostar,q1,q2,dilution
+        cube[0] = 0.04*cube[0] + 0.98 #flux_zp in [0.98,1.02)
+        cube[1] = 199.999*cube[1] + 1e-4 #rhostar in [1e-4, 200)
+        # cube[2] = unchanged # q1 in [0,1)
+        # cube[3] = unchanged # q2 in [0,1)
+        # cube[4] = unchanged # dilution in [0,1)
+
+        counter = 5
+        for i in xrange(self.lc.n_planets): #iterating over each planet in the light curve system
+            #grabbing these prior values as the mean and error for flat priors
+            prior_p_mu, prior_p_sig = self.lc.planets[i]._period
+            prior_ep_mu, prior_ep_sig = self.lc.planets[i]._epoch
+            #setting the flat priors between mu +- 10sigma for period, epoch
+            cube[counter] = 20*prior_p_sig*cube[counter] + prior_p_mu - 10*prior_p_sig #period
+            cube[counter+1] = 20*prior_ep_sig*cube[counter+1] + prior_ep_mu - 10*prior_ep_sig #epoch
+            cube[counter+2] = 2*cube[counter+2] #b in [0,2)
+            cube[counter+3] = 0.295*cube[counter+3] + 0.005 #rprs in [0.005,0.3)
+            # cube[counter+4] = unchanged #ecc in [0,1)
+            cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
+            counter += 6
+        return cube
 
     def mnest_loglike(self, cube, ndims, nparams):
         """
@@ -756,6 +787,63 @@ class BinaryTransitModel(TransitModel):
         
         return 1-((1-fA)+(1-fB))
 
+    def fit_emcee(self, p0=None, nwalkers=200, threads=1,
+                  nburn=10, niter=100, **kwargs):
+        #fits the parameters using the emcee package
+        if p0 is None:
+            p0 = self.lc.default_params
+
+        ndim = len(p0)
+
+        # TODO: improve walker initialization!
+        ###################
+        # using least squares fit to choose emcee walker intialisation
+
+        LSfit = fit_leastsq(p0)
+        p0 = LSfit.x
+        
+        ######################
+
+        nw = nwalkers
+        p0 = np.ones((nw,ndim)) * np.array(p0)[None,:]
+
+        p0[:, 0] += np.random.normal(size=nw)*0.0001 #flux zp
+        if (len(self.lc.rhostarA) == 2):
+            p0[:, 1] += np.random.normal(size=nw)*self.lc.rhostarA[1] #rhostarA
+        else:
+            p0[:,1] += np.random.normal(size=nw)*np.std(self.lc.rhostarA)
+        p0[:, 2] += np.random.normal(size=nw)*0.1 #q1A
+        p0[:, 3] += np.random.normal(size=nw)*0.1 #q2A
+        p0[:, 4] += np.random.normal(size=nw)*0.1 #dilutionA
+        if (len(self.lc.rhostarB) == 2):
+            p0[:, 5] += np.random.normal(size=nw)*self.lc.rhostarB[1] #rhostarA
+        else:
+            p0[:,5] += np.random.normal(size=nw)*np.std(self.lc.rhostarB)
+        p0[:, 6] += np.random.normal(size=nw)*0.1 #q1A
+        p0[:, 7] += np.random.normal(size=nw)*0.1 #q2A
+        p0[:, 8] += np.random.normal(size=nw)*0.1 #dilutionA
+
+        for i in range(self.lc.n_planets):
+            p0[:, 9 + 6*i] += np.random.normal(size=nw)*1e-4 #period
+            p0[:, 10 + 6*i] += np.random.normal(size=nw)*0.001 #epoch
+            p0[:, 11 + 6*i] = np.random.random(size=nw)*0.8 # impact param
+            p0[:, 12 + 6*i] *= (1 + np.random.normal(size=nw)*0.01) #rprs
+            p0[:, 13 + 6*i] = np.random.random(size=nw)*0.1 # eccentricity
+            p0[:, 14 + 6*i] = np.random.random(size=nw)*2*np.pi # omega
+
+        p0 = np.absolute(p0) # no negatives allowed 
+                                                
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, self, threads=threads)
+
+        pos,prob,state = sampler.run_mcmc(p0, nburn)
+        sampler.reset()
+
+        sampler.run_mcmc(pos, niter)
+
+        self.sampler = sampler
+        return sampler
+
+
     def mnest_prior(self, cube, ndims, nparams):
         """
         Transforms the unit cube into parameter cube
@@ -792,6 +880,44 @@ class BinaryTransitModel(TransitModel):
             # cube[counter+4] = unchanged #ecc in [0,1)
             cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
             counter += 6
+
+    def pchord_prior(self, cube, ndims, nparams):
+        """
+        Transforms the unit cube into parameter cube
+
+        Uses simple flat priors, more complicated transformations will occur in lnprior
+
+        Priors are flux_zp, [rhostar, q1, q2, dilution] for each star
+        and [period, epoch, b, rprs, ecc, omega] for each planet
+        """
+        #flat priors
+        cube[0] = 0.04*cube[0] + 0.98 #flux_zp in [0.98,1.02)
+
+        #stellar parameters
+        cube[1] = 199.999*cube[1] + 1e-4 #rhostarA in [1e-4, 200)
+        # cube[2] = unchanged # q1A in [0,1)
+        # cube[3] = unchanged # q2A in [0,1)
+        # cube[4] = unchanged # dilutionA in [0,1)
+
+        cube[5] = 199.999*cube[5] + 1e-4 #rhostarB in [1e-4,200)
+        #cube[6] = unchanged # q1B in [0,1)
+        #cube[7] = unchanged # q2B in [0,1)
+        #cube[8] = unchanged #dilutionB in [0,1)
+
+        counter = 9
+        for i in xrange(self.lc.n_planets): #iterating over each planet in the light curve system
+            #grabbing these prior values as the mean and error for flat priors
+            prior_p_mu, prior_p_sig = self.lc.planets[i]._period
+            prior_ep_mu, prior_ep_sig = self.lc.planets[i]._epoch
+            #setting the flat priors between mu +- 10sigma for period, epoch
+            cube[counter] = 20*prior_p_sig*cube[counter] + prior_p_mu - 10*prior_p_sig #period
+            cube[counter+1] = 20*prior_ep_sig*cube[counter+1] + prior_ep_mu - 10*prior_ep_sig #epoch
+            cube[counter+2] = 2*cube[counter+2]#b in [0,2)
+            cube[counter+3] = 0.295*cube[counter+3] + 0.005#rprs in [0.005,0.3)
+            # cube[counter+4] = unchanged #ecc in [0,1)
+            cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
+            counter += 6
+        return cube
 
     def lnprior(self, p):
         flux_zp, rhostarA, q1A, q2A, dilutionA = p[:5]
