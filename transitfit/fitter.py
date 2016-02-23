@@ -7,6 +7,7 @@ import os, os.path
 import math
 import emcee
 import pymultinest
+import pypolychord
 from scipy.special import beta
 from .utils import transit_lc, batman_lc
 import batman
