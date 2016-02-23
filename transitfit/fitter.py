@@ -250,7 +250,7 @@ class TransitModel(object):
             self.n_chords = n_chords
         else: self.n_chords = 3*self.n_dim
 
-        pypolychord.run(self.mnest_loglike,self.pchord_prior,self.n_dim,n_live=n_live_points,n_chords=self.n_chords,output_basename =self._pchord_basename,**kwargs)
+        pypolychord.run(self.pchord_loglike,self.pchord_prior,self.n_dim,n_live=n_live_points,n_chords=self.n_chords,output_basename =self._pchord_basename,**kwargs)
 
     def mnest_prior(self, cube, ndims, nparams):
         """
