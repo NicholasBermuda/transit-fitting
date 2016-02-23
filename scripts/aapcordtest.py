@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-from transitfit import LightCurve, KeplerLightCurve, TransitModel, BinaryLightCurve, BinaryKeplerLightCurve, BinaryTransitModel
+from transitfit import LightCurve, KeplerLightCurve, TransitModel
 
-lc = BinaryLightCurve.load_hdf('fits/K01422/AAAAA/1422_lc.h5')
+lc = KeplerLightCurve(1422,1)
 
-model = BinaryTransitModel(lc,which=which,light_curve='transit')
-model.fit_polychord(basename=('fits/K01422/AAAAA/polychains/1-'))
+model = TransitModel(lc,which=which,light_curve='transit')
+model.fit_polychord(basename=('polychains/1-'))
