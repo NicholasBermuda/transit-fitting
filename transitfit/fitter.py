@@ -282,7 +282,7 @@ class TransitModel(object):
             cube[counter+5] = 2*math.pi*cube[counter+5] #omega in [0,2pi)
             counter += 6
 
-    def pchord_prior(self, cube, ndims, nparams):
+    def pchord_prior(self, cube):
         """
         Transforms the unit cube into parameter cube
 
