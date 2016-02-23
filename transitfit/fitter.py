@@ -319,6 +319,9 @@ class TransitModel(object):
         """
         return self.lnpost(cube)
 
+    def pchord_loglike(self,cube):
+        return self.lnpost(cube)
+
     @property
     def mnest_analyzer(self): #This returns an Analyzer object! Not the stats
         """
