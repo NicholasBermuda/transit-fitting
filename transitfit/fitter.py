@@ -7,7 +7,6 @@ import os, os.path
 import math
 import emcee
 import pymultinest
-import pypolychord
 from scipy.special import beta
 from .utils import transit_lc, batman_lc
 import batman
@@ -36,7 +35,7 @@ class TransitModel(object):
         ``tc + width*duration``, where ``tc`` is the transit center time.
 
     """
-    def __init__(self, lc, width=2, continuum_method='constant',light_curve='batman',fit_method='multinest'):
+    def __init__(self, lc, width=2, continuum_method='constant',light_curve='transit',fit_method='multinest'):
 
         self.lc = lc #KeplerLightCurve object
         self.width = width
@@ -48,6 +47,8 @@ class TransitModel(object):
 
         self._light_curve = light_curve
         self._fit_method = fit_method
+        if fit_method == 'polychord':
+            import pypolychord
 
         #set up the initial batman model
         # if light_curve == 'batman':
