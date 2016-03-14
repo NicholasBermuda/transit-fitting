@@ -47,8 +47,6 @@ class TransitModel(object):
 
         self._light_curve = light_curve
         self._fit_method = fit_method
-        if fit_method == 'polychord':
-            import pypolychord
 
         #set up the initial batman model
         # if light_curve == 'batman':
@@ -242,6 +240,7 @@ class TransitModel(object):
 
 
     def fit_polychord(self,n_live_points=1000,n_chords=None,basename='polychains/1-',**kwargs):
+        import pypolychord
         self._pchord_basename = basename
 
         if hasattr(self,'which'): self.n_dim = 9 + 6*self.lc.n_planets
