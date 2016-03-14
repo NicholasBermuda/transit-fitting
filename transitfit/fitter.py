@@ -162,8 +162,8 @@ class TransitModel(object):
             return fit_leastsq(**kwargs)
         elif self._fit_method == 'emcee':
             return fit_emcee(**kwargs)
-        # elif self._fit_method == 'polychord':
-        #     self.fit_polychord(**kwargs)
+        elif self._fit_method == 'polychord':
+             self.fit_polychord(**kwargs)
         else: self.fit_multinest(**kwargs)
 
     def fit_leastsq(self, p0=None, method='Powell', **kwargs):
