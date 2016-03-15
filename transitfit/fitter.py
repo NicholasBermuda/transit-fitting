@@ -460,7 +460,7 @@ class TransitModel(object):
 
     @property
     def samples(self):
-        if self.use_emcee:
+        if self._fit_method == 'emcee':
             if not hasattr(self,'sampler') and self._samples is None:
                 raise AttributeError('Must run MCMC (or load from file) '+
                                      'before accessing samples')
@@ -484,7 +484,7 @@ class TransitModel(object):
         return df
         
     def _make_samples(self):
-        if self.use_emcee:
+        if self._fit_method == 'emcee':
             flux_zp = self.sampler.flatchain[:,0]
             rho = self.sampler.flatchain[:,1]
             q1 = self.sampler.flatchain[:,2]
