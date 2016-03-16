@@ -1034,7 +1034,8 @@ class BinaryTransitModel(TransitModel):
 
         self._samples = df
 
-    def corner(self, params=None, planet_only=False,**kwargs):
+    def corner(self, params=None, i=0, query=None, planet_only=False,
+        extent=0.999, **kwargs):
         if corner is None:
             raise ImportError('please run "pip install corner".')
         
@@ -1054,6 +1055,9 @@ class BinaryTransitModel(TransitModel):
                 params.append('{}_{}_{}'.format(par, i+1,self.which[i]))
 
         df = self.samples
+
+        if query is not None:
+            df = df.query(query)
 
         if query is not None:
             df = df.query(query)
