@@ -567,7 +567,7 @@ class TransitModel(object):
                 params.append('q2')
             for par in ['period', 'epoch', 'b', 'rprs',
                         'ecc', 'omega']:
-                params.append('{}_{}'.format(par, i+1))
+                params.append('{}_{}_{}'.format(par, i+1,self.which[i]))
         elif passedfrombinary:
             for par in ['period', 'epoch', 'b', 'rprs',
                         'ecc', 'omega']:
