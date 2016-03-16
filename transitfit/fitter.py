@@ -528,8 +528,7 @@ class TransitModel(object):
         self._samples = df
 
     def corner(self, params=None, i=0, query=None, extent=0.999,
-                 planet_only=False, passedfrombinary=False,
-                 **kwargs):
+                 planet_only=False, **kwargs):
         """
         Makes a nifty corner plot for planet i
 
@@ -568,11 +567,6 @@ class TransitModel(object):
             for par in ['period', 'epoch', 'b', 'rprs',
                         'ecc', 'omega']:
                 params.append('{}_{}'.format(par, i+1))
-        elif passedfrombinary:
-            for par in ['period', 'epoch', 'b', 'rprs',
-                        'ecc', 'omega']:
-                params.append('{}_{}_{}'.format(par, i+1,self.which[i]))
-
 
         df = self.samples
 
@@ -1043,14 +1037,45 @@ class BinaryTransitModel(TransitModel):
     def corner(self, params=None, planet_only=False,**kwargs):
         if corner is None:
             raise ImportError('please run "pip install corner".')
-
-        if params is None:
-            if planet_only:
-                params = []
-            else: params = ['dilutionA','rhoA','q1A','q2A','dilutionB','rhoB','q1B','q2B']
         
-        super(BinaryTransitModel, self).corner(params,planet_only=planet_only,passedfrombinary=True,**kwargs)
+        if params is None:
+            params = []
+            if not(planet_only):
+                params.append('dilutionA')
+                params.append('rhoA')
+                params.append('q1A')
+                params.append('q2A')
+                params.append('dilutionB')
+                params.append('rhoB')
+                params.append('q1B')
+                params.append('q2B')
+            for par in ['period', 'epoch', 'b', 'rprs',
+                        'ecc', 'omega']:
+                params.append('{}_{}_{}'.format(par, i+1,self.which[i]))
 
+        df = self.samples
+
+        if query is not None:
+            df = df.query(query)
+
+        #convert extent to ranges, but making sure
+        # that truths are in range.
+        extents = []
+        remove = []
+        for i,par in enumerate(params):
+            values = df[par]
+            qs = np.array([0.5 - 0.5*extent, 0.5 + 0.5*extent])
+            minval, maxval = values.quantile(qs)
+            if 'truths' in kwargs:
+                datarange = maxval - minval
+                if kwargs['truths'][i] < minval:
+                    minval = kwargs['truths'][i] - 0.05*datarange
+                if kwargs['truths'][i] > maxval:
+                    maxval = kwargs['truths'][i] + 0.05*datarange
+            extents.append((minval,maxval))
+            
+        return corner.corner(df[params], labels=params, 
+                               extents=extents, **kwargs)        
 
     @classmethod
     def load_hdf(cls, filename, path=''):
