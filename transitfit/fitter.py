@@ -1047,7 +1047,7 @@ class BinaryTransitModel(TransitModel):
         if params is None:
             if planet_only:
                 params = []
-            else: params = ['dilutionA','rhostarA','q1A','q2A','dilutionB','rhostarB','q1B','q2B']
+            else: params = ['dilutionA','rhoA','q1A','q2A','dilutionB','rhoB','q1B','q2B']
         
         super(BinaryTransitModel, self).triangle(params,planet_only=planet_only,passedfrombinary=True,**kwargs)
 
