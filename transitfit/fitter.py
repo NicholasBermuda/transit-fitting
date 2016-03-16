@@ -584,7 +584,7 @@ class TransitModel(object):
         extents = []
         remove = []
         for i,par in enumerate(params):
-            values = df[i]
+            values = df[par]
             qs = np.array([0.5 - 0.5*extent, 0.5 + 0.5*extent])
             minval, maxval = values.quantile(qs)
             if 'truths' in kwargs:
