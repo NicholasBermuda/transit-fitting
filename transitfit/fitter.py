@@ -17,9 +17,9 @@ R_sun = 69550800000.0 #astropy.constants.R_sun.cgs.value
 DAY = 86400 #in seconds
 
 try:
-    import triangle
+    import corner
 except ImportError:
-    triangle=None
+    corner=None
     
 
 
@@ -527,13 +527,13 @@ class TransitModel(object):
 
         self._samples = df
 
-    def triangle(self, params=None, i=0, query=None, extent=0.999,
+    def corner(self, params=None, i=0, query=None, extent=0.999,
                  planet_only=False, passedfrombinary=False,
                  **kwargs):
         """
         Makes a nifty corner plot for planet i
 
-        Uses :func:`triangle.corner`.
+        Uses :func:`corner.corner`.
 
         :param params: (optional)
             Names of columns to plot.  Set planet_only to be ``True``
@@ -546,17 +546,17 @@ class TransitModel(object):
             Optional query on samples.
 
         :param extent: (optional)
-            Will be appropriately passed to :func:`triangle.corner`.
+            Will be appropriately passed to :func:`corner.corner`.
 
         :param **kwargs:
-            Additional keyword arguments passed to :func:`triangle.corner`.
+            Additional keyword arguments passed to :func:`corner.corner`.
 
         :return:
             Figure oject containing corner plot.
             
         """
-        if triangle is None:
-            raise ImportError('please run "pip install triangle_plot".')
+        if corner is None:
+            raise ImportError('please run "pip install corner".')
         
         if params is None:
             params = []
@@ -595,7 +595,7 @@ class TransitModel(object):
                     maxval = kwargs['truths'][i] + 0.05*datarange
             extents.append((minval,maxval))
             
-        return triangle.corner(df[params], labels=params, 
+        return corner.corner(df[params], labels=params, 
                                extents=extents, **kwargs)
 
     def save_hdf(self, filename, path='', overwrite=False, append=False):
@@ -1040,16 +1040,16 @@ class BinaryTransitModel(TransitModel):
 
         self._samples = df
 
-    def triangle(self, params=None, planet_only=False,**kwargs):
-        if triangle is None:
-            raise ImportError('please run "pip install triangle_plot".')
+    def corner(self, params=None, planet_only=False,**kwargs):
+        if corner is None:
+            raise ImportError('please run "pip install corner".')
 
         if params is None:
             if planet_only:
                 params = []
             else: params = ['dilutionA','rhoA','q1A','q2A','dilutionB','rhoB','q1B','q2B']
         
-        super(BinaryTransitModel, self).triangle(params,planet_only=planet_only,passedfrombinary=True,**kwargs)
+        super(BinaryTransitModel, self).corner(params,planet_only=planet_only,passedfrombinary=True,**kwargs)
 
 
     @classmethod
