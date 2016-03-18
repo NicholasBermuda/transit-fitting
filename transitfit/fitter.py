@@ -528,7 +528,7 @@ class TransitModel(object):
         self._samples = df
 
     def corner(self, params=None, i=0, query=None, extent=0.999,
-                 planet_only=False, **kwargs):
+                 planet_only=False, star_only=False, **kwargs):
         """
         Makes a nifty corner plot for planet i
 
@@ -564,9 +564,10 @@ class TransitModel(object):
                 params.append('rho')
                 params.append('q1')
                 params.append('q2')
-            for par in ['period', 'epoch', 'b', 'rprs',
+            if not(star_only):
+                for par in ['period', 'epoch', 'b', 'rprs',
                         'ecc', 'omega']:
-                params.append('{}_{}'.format(par, i+1))
+                    params.append('{}_{}'.format(par, i+1))
 
         df = self.samples
 
@@ -1034,7 +1035,7 @@ class BinaryTransitModel(TransitModel):
 
         self._samples = df
 
-    def corner(self, params=None, i=0, query=None, planet_only=False,
+    def corner(self, params=None, i=0, query=None, planet_only=False, star_only=False,
         extent=0.999, **kwargs):
         if corner is None:
             raise ImportError('please run "pip install corner".')
@@ -1050,9 +1051,10 @@ class BinaryTransitModel(TransitModel):
                 params.append('rhoB')
                 params.append('q1B')
                 params.append('q2B')
-            for par in ['period', 'epoch', 'b', 'rprs',
+            if not(star_only):
+                for par in ['period', 'epoch', 'b', 'rprs',
                         'ecc', 'omega']:
-                params.append('{}_{}_{}'.format(par, i+1,self.which[i]))
+                    params.append('{}_{}_{}'.format(par, i+1,self.which[i]))
 
         df = self.samples
 
