@@ -569,6 +569,9 @@ class TransitModel(object):
                         'ecc', 'omega']:
                     params.append('{}_{}'.format(par, i+1))
 
+        paramnames = ['Dilution','Rho','q1','q2','Period','Epoch','Impact Parameter',
+                        'Planet-Star Radius Ratio','Eccentricity','Long. of Periastron']
+
         df = self.samples
 
         if query is not None:
@@ -590,7 +593,7 @@ class TransitModel(object):
                     maxval = kwargs['truths'][i] + 0.05*datarange
             extents.append((minval,maxval))
             
-        return corner.corner(df[params], labels=params, 
+        return corner.corner(df[params], labels=paramnames, 
                                extents=extents, **kwargs)
 
     def save_hdf(self, filename, path='', overwrite=False, append=False):
@@ -1058,6 +1061,10 @@ class BinaryTransitModel(TransitModel):
 
         df = self.samples
 
+        paramnames = ['Dilution A','Rho A','q1 A','q2A', 'Dilution B','Rho B','q1 B', 'q2 B',
+                        'Period','Epoch','Impact Parameter',
+                        'Planet-Star Radius Ratio','Eccentricity','Long. of Periastron']
+
         if query is not None:
             df = df.query(query)
 
@@ -1080,7 +1087,7 @@ class BinaryTransitModel(TransitModel):
                     maxval = kwargs['truths'][i] + 0.05*datarange
             extents.append((minval,maxval))
             
-        return corner.corner(df[params], labels=params, 
+        return corner.corner(df[params], labels=paramnames, 
                                extents=extents, **kwargs)        
 
     @classmethod
