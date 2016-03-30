@@ -528,7 +528,7 @@ class TransitModel(object):
         self._samples = df
 
     def corner(self, params=None, i=0, query=None, extent=0.999,
-                 planet_only=False, star_only=False, **kwargs):
+                 planet_only=False, star_only=False,truths=None, **kwargs):
         """
         Makes a nifty corner plot for planet i
 
@@ -564,13 +564,21 @@ class TransitModel(object):
                 params.append('rho')
                 params.append('q1')
                 params.append('q2')
+                paramnames = [r'Dilution',r'$\rho$',r'$q_1$',r'$q_2$']
             if not(star_only):
+                paramnames = [r'Period',r'Epoch',r'Impact Parameter',
+                        r'$\frac{R_p}{R_s}',r'$e$',r'$\omega$']
                 for par in ['period', 'epoch', 'b', 'rprs',
                         'ecc', 'omega']:
                     params.append('{}_{}'.format(par, i+1))
 
-        paramnames = ['Dilution','Rho','q1','q2','Period','Epoch','Impact Parameter',
-                        'Planet-Star Radius Ratio','Eccentricity','Long. of Periastron']
+
+        if truths is not None:
+            if not(planet_only):
+                maxlikelihood = [truths[1],truths[2],truths[3],truths[4]]
+            if not(star_only):
+                maxlikelihood = [truths[5],truths[6],truths[7],
+                    truths[8],truths[9],truths[10]]
 
         df = self.samples
 
@@ -593,8 +601,8 @@ class TransitModel(object):
                     maxval = kwargs['truths'][i] + 0.05*datarange
             extents.append((minval,maxval))
             
-        return corner.corner(df[params], labels=paramnames, 
-                               extents=extents, **kwargs)
+        return corner.corner(df[params], labels=paramnames, range=extents, 
+                               show_titles=True,truths=maxlikelihood, **kwargs)
 
     def save_hdf(self, filename, path='', overwrite=False, append=False):
         """Saves object data to HDF file (only works if MCMC is run)
