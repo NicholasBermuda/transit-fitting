@@ -1091,20 +1091,20 @@ class BinaryTransitModel(TransitModel):
         # that truths are in range.
         extents = []
         remove = []
-        for i,par in enumerate(params):
+        for j,par in enumerate(params):
             values = df[par]
             qs = np.array([0.5 - 0.5*extent, 0.5 + 0.5*extent])
             minval, maxval = values.quantile(qs)
             if 'truths' in kwargs:
                 datarange = maxval - minval
-                if kwargs['truths'][i] < minval:
-                    minval = kwargs['truths'][i] - 0.05*datarange
-                if kwargs['truths'][i] > maxval:
-                    maxval = kwargs['truths'][i] + 0.05*datarange
+                if kwargs['truths'][j] < minval:
+                    minval = kwargs['truths'][j] - 0.05*datarange
+                if kwargs['truths'][j] > maxval:
+                    maxval = kwargs['truths'][j] + 0.05*datarange
             extents.append((minval,maxval))
 
-        print('For planet {}, truths are {}\n'.format((i+1),truths))
-                    
+        print('For planet {}, truths are {}\n'.format((i+1),maxlikelihood))
+
         return corner.corner(df[params], labels=paramnames, 
                                range=extents, truths=maxlikelihood,**kwargs)        
 
