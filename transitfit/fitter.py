@@ -567,7 +567,7 @@ class TransitModel(object):
                 paramnames = [r'Dilution',r'$\rho$',r'$q_1$',r'$q_2$']
             if not(star_only):
                 paramnames = [r'Period',r'Epoch',r'Impact Parameter',
-                        r'$\frac{R_p}{R_s}',r'$e$',r'$\omega$']
+                        r'$\frac{R_p}{R_s}$',r'$e$',r'$\omega$']
                 for par in ['period', 'epoch', 'b', 'rprs',
                         'ecc', 'omega']:
                     params.append('{}_{}'.format(par, i+1))
@@ -577,8 +577,8 @@ class TransitModel(object):
             if not(planet_only):
                 maxlikelihood = [truths[1],truths[2],truths[3],truths[4]]
             if not(star_only):
-                maxlikelihood = [truths[5],truths[6],truths[7],
-                    truths[8],truths[9],truths[10]]
+                maxlikelihood = [truths[6*i-1],truths[6*i],truths[6*i+1],
+                    truths[6*i+2],truths[6*i+3],truths[6*i+4]]
 
         df = self.samples
 
@@ -1046,7 +1046,7 @@ class BinaryTransitModel(TransitModel):
 
         self._samples = df
 
-    def corner(self, params=None, i=0, query=None, planet_only=False, star_only=False,
+    def corner(self, params=None, i=0, query=None, planet_only=False,truths=None, star_only=False,
         extent=0.999, **kwargs):
         if corner is None:
             raise ImportError('please run "pip install corner".')
@@ -1062,19 +1062,25 @@ class BinaryTransitModel(TransitModel):
                 params.append('rhoB')
                 params.append('q1B')
                 params.append('q2B')
+                paramnames = [r'Dilution A',r'$\rho$ A',r'$q_1$ A',r'$q_2$ A',
+                            r'Dilution B',r'$\rho$ B',r'$q_1$ B',r'$q_2$ B']
             if not(star_only):
+                paramnames = [r'Period',r'Epoch',r'Impact Parameter',
+                        r'$\frac{R_p}{R_s}$',r'$e$',r'$\omega$']
                 for par in ['period', 'epoch', 'b', 'rprs',
                         'ecc', 'omega']:
                     params.append('{}_{}_{}'.format(par, i+1,self.which[i]))
 
         df = self.samples
 
-        paramnames = ['Dilution A','Rho A','q1 A','q2A', 'Dilution B','Rho B','q1 B', 'q2 B',
-                        'Period','Epoch','Impact Parameter',
-                        'Planet-Star Radius Ratio','Eccentricity','Long. of Periastron']
 
-        if query is not None:
-            df = df.query(query)
+        if truths is not None:
+            if not(planet_only):
+                maxlikelihood = [truths[1],truths[2],truths[3],truths[4],
+                                truths[5],truths[6],truths[7],truths[8]]
+            if not(star_only):
+                maxlikelihood = [truths[9+(i-1)*6],truths[10+(i-1)*6],truths[11+(i-1)*6],
+                    truths[12+(i-1)*6],truths[13+(i-1)*6],truths[14+(i-1)*6]]
 
         if query is not None:
             df = df.query(query)
@@ -1096,7 +1102,7 @@ class BinaryTransitModel(TransitModel):
             extents.append((minval,maxval))
             
         return corner.corner(df[params], labels=paramnames, 
-                               extents=extents, **kwargs)        
+                               range=extents, truths=maxlikelihood,**kwargs)        
 
     @classmethod
     def load_hdf(cls, filename, path=''):
