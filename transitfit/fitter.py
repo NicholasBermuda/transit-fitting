@@ -1078,7 +1078,7 @@ class BinaryTransitModel(TransitModel):
         if truths is not None:
             if not(planet_only):
                 maxlikelihood = [truths[4],truths[1],truths[2],truths[3],
-                                truths[8],truths[6],truths[6],truths[5]]
+                                truths[8],truths[5],truths[6],truths[7]]
             if not(star_only):
                 maxlikelihood = [truths[9+i*6],truths[10+i*6],truths[11+i*6],
                     truths[12+i*6],truths[13+i*6],truths[14+i*6]]
