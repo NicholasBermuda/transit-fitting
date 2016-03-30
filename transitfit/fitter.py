@@ -600,6 +600,8 @@ class TransitModel(object):
                 if kwargs['truths'][i] > maxval:
                     maxval = kwargs['truths'][i] + 0.05*datarange
             extents.append((minval,maxval))
+
+        print('For planet {}, truths are {}\n'.format((i+1),truths))
             
         return corner.corner(df[params], labels=paramnames, range=extents, 
                                show_titles=True,truths=maxlikelihood, **kwargs)
@@ -1101,8 +1103,8 @@ class BinaryTransitModel(TransitModel):
                     maxval = kwargs['truths'][i] + 0.05*datarange
             extents.append((minval,maxval))
 
-        print('For ')
-            
+        print('For planet {}, truths are {}\n'.format((i+1),truths))
+                    
         return corner.corner(df[params], labels=paramnames, 
                                range=extents, truths=maxlikelihood,**kwargs)        
 
