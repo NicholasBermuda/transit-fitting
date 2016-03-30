@@ -577,8 +577,8 @@ class TransitModel(object):
             if not(planet_only):
                 maxlikelihood = [truths[1],truths[2],truths[3],truths[4]]
             if not(star_only):
-                maxlikelihood = [truths[6*i-1],truths[6*i],truths[6*i+1],
-                    truths[6*i+2],truths[6*i+3],truths[6*i+4]]
+                maxlikelihood = [truths[6+i*6],truths[7+i*6],truths[8+i*6],
+                    truths[9+i*6],truths[10+i*6],truths[11+i*6]]
 
         df = self.samples
 
@@ -1079,8 +1079,8 @@ class BinaryTransitModel(TransitModel):
                 maxlikelihood = [truths[1],truths[2],truths[3],truths[4],
                                 truths[5],truths[6],truths[7],truths[8]]
             if not(star_only):
-                maxlikelihood = [truths[9+(i-1)*6],truths[10+(i-1)*6],truths[11+(i-1)*6],
-                    truths[12+(i-1)*6],truths[13+(i-1)*6],truths[14+(i-1)*6]]
+                maxlikelihood = [truths[9+i*6],truths[10+i*6],truths[11+i*6],
+                    truths[12+i*6],truths[13+i*6],truths[14+i*6]]
 
         if query is not None:
             df = df.query(query)
@@ -1100,6 +1100,8 @@ class BinaryTransitModel(TransitModel):
                 if kwargs['truths'][i] > maxval:
                     maxval = kwargs['truths'][i] + 0.05*datarange
             extents.append((minval,maxval))
+
+        print('For ')
             
         return corner.corner(df[params], labels=paramnames, 
                                range=extents, truths=maxlikelihood,**kwargs)        
