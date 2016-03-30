@@ -603,7 +603,7 @@ class TransitModel(object):
 
             
         return corner.corner(df[params], labels=paramnames, range=extents, 
-                               show_titles=True,truths=maxlikelihood, **kwargs)
+                               show_titles=True,truths=maxlikelihood,use_math_text=True, **kwargs)
 
     def save_hdf(self, filename, path='', overwrite=False, append=False):
         """Saves object data to HDF file (only works if MCMC is run)
@@ -1102,10 +1102,8 @@ class BinaryTransitModel(TransitModel):
                     maxval = kwargs['truths'][j] + 0.05*datarange
             extents.append((minval,maxval))
 
-        print('For planet {}, truths are {}\n'.format((i+1),maxlikelihood))
-
         return corner.corner(df[params], labels=paramnames, 
-                               range=extents, truths=maxlikelihood,**kwargs)        
+                               range=extents, truths=maxlikelihood,use_math_text=True,**kwargs)        
 
     @classmethod
     def load_hdf(cls, filename, path=''):
