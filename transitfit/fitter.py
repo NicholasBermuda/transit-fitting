@@ -48,32 +48,6 @@ class TransitModel(object):
         self._light_curve = light_curve
         self._fit_method = fit_method
 
-        #set up the initial batman model
-        # if light_curve == 'batman':
-        #     p0 = self.lc.default_params
-        #     flux_zp, rhostar, q1, q2, dilution = p0[:5]
-        #     u1 = 2*math.sqrt(q1)*q2 #convert q1,q2 to u1,u2 from Kipping (2013)
-        #     u2 = math.sqrt(q1)*(1.-2*q2)
-        #     periodcgs = p0[5]*DAY #convert the period to cgs
-        #     ars = ((rhostar*G*periodcgs**2)/(3*math.pi))**(1./3.) #a over R_star, from Winn (2014) eqn (30)
-        #     b = p0[7]
-        #     e = p0[9]
-        #     w = p0[10]
-        #     incl = math.acos((b/ars)*((1+e*math.sin(w))/(1-e**2))) *180./math.pi
-        #     w = w * 180./math.pi
-        #     params = batman.TransitParams()
-        #     params.per = p0[5]
-        #     params.t0 = p0[6]
-        #     rp = p0[8]
-        #     params.rp = rp
-        #     params.a = ars
-        #     params.inc = incl
-        #     params.ecc = e
-        #     params.w = w
-        #     params.limb_dark = 'quadratic'
-        #     params.u = [u1,u2]
-        #     self._initialmodel = batman.TransitModel(params,self.lc.t,supersample_factor=5.,exp_time=self.lc.texp)
-
     def continuum(self, p, t):
         """ Out-of-transit 'continuum' model.
 
